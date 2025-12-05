@@ -1,0 +1,141 @@
+Desarrolla un sistema web completo (frontend + backend) para un negocio profesional de preparación de impuestos en EE. UU. llamado “Highlight Tax Services”. El sistema debe ser FULL STACK, con visualización moderna y un backend seguro, con portal de clientes y panel administrativo.
+🏠 1. FRONTEND — PÁGINA PRINCIPAL (VISUAL / RESPONSIVE)
+Crear una página web moderna, limpia y confiable con estas secciones:
+✔ Encabezado
+Logo (placeholder)
+Nombre: Highlight Tax Services
+Menú: Inicio | Servicios | Nosotros | Contacto | Portal Cliente | Policies
+✔ Sección principal (Hero)
+Slogan: “Maximiza tu reembolso con expertos en impuestos.”
+Botón CTA: “Agendar Cita”
+Botón CTA secundario: “Portal de Clientes”
+FONDO profesional estilo tax season
+✔ Botón flotante WhatsApp
+Siempre visible, con enlace directo:
+https://wa.me/19172574554?text=Hola%20quiero%20información%20sobre%20sus%20servicios%20de%20taxes
+✔ Beneficios rápidos
+Preparadores certificados
+Reembolsos rápidos
+Servicio en inglés y español
+Total confidencialidad
+🧾 2. SECCIÓN DE SERVICIOS (VISUAL)
+Crear tarjetas con íconos y descripciones:
+✔ Preparación de Taxes Personales (1040)
+✔ Self-Employed / 1099 (Uber, Lyft, DoorDash)
+✔ Business Taxes (LLC, Schedule C)
+✔ ITIN (Aplicación y Renovación)
+✔ Bookkeeping Mensual
+✔ Tax Amendments (Correcciones 1040X)
+Cada tarjeta debe incluir botón:
+“Solicitar Información por WhatsApp”
+(abre el mismo enlace pasado).
+👤 3. SECCIÓN SOBRE NOSOTROS
+Incluir este texto:
+“Highlight Tax Services brinda servicios confiables de preparación de impuestos para empleados, dueños de negocios y trabajadores independientes en todo Estados Unidos. Con más de 10 años de experiencia, garantizamos procesos claros, seguros y orientados a maximizar tus beneficios.”
+Viñetas:
+10+ años de experiencia
+Servicio personalizado
+Confidencialidad absoluta
+Bilingüe
+Dirección completa:
+84 West 188th Street, Apt 3C — Bronx, NY 10468
+Teléfono: +1 917-257-4554
+Correo: servicestaxx@gmail.com
+📞 4. FORMULARIO DE CONTACTO
+Campos requeridos:
+Nombre
+Email
+Teléfono
+Mensaje
+Enviar al correo:
+servicestaxx@gmail.com
+Puede usarse FormSubmit, sendgrid o backend propio.
+Mensaje de éxito:
+“Gracias por contactarnos. Responderemos pronto.”
+🗂 5. BACKEND COMPLETO (PORTAL + DASHBOARD + BASE DE DATOS)
+Construir backend seguro tipo enterprise.
+🛡 Tecnologías sugeridas
+ASP.NET Core + SQL Server (preferido)
+o
+Laravel
+o
+Node.js + Express
+📌 Requerimientos del backend
+🔹 Sistema de Autenticación
+Roles:
+Admin
+Preparer
+Cliente
+Token JWT o Identity Framework.
+🔹 Portal de Clientes
+El cliente debe poder:
+Registrarse
+Iniciar sesión
+Subir documentos (W-2, 1099, ID, recibos)
+Ver estado de su caso (pendiente, en proceso, enviado al IRS, aprobado, refund issued)
+Descargar documentos del preparador
+Ver mensajes del preparador
+Agendar citas
+Documentos almacenados en:
+Azure Storage / AWS S3 / FileServer seguro
+🔹 Panel Administrativo (Dashboard)
+El administrador debe poder:
+Ver todos los clientes
+Ver documentos subidos
+Descargar documentos
+Cambiar estado del caso
+Agregar notas internas
+Manejar citas
+Ver estadísticas:
+casos pendientes
+casos completados
+reembolsos estimados
+volumen de clientes por temporada
+🔹 Base de Datos — Modelo
+Tablas recomendadas:
+Users
+Clients
+TaxCases
+Documents
+Appointments
+Logs
+Messages
+Cada caso debe incluir:
+Filing Year
+Filing Status
+Dependents
+Estado
+Monto final
+🔹 Agenda de Citas
+Sistema interno donde:
+El cliente selecciona fecha/hora
+El sistema bloquea horarios ocupados
+Envía email de confirmación
+Envía recordatorio automático
+📱 6. INTEGRACIONES
+✔ WhatsApp directo
+https://wa.me/19172574554?text=Hola%20quiero%20información%20sobre%20sus%20servicios%20de%20taxes
+✔ Email automático
+Al registrarse
+Al subir documentos
+Cuando el caso cambia de estado
+🔐 7. POLÍTICA DE PRIVACIDAD
+Texto obligatorio:
+“Highlight Tax Services protege la información personal y fiscal de todos sus clientes. Toda data recibida se utiliza únicamente para preparación de impuestos, comunicación y cumplimiento legal. No compartimos información con terceros. Toda documentación es almacenada de forma cifrada y bajo estrictos estándares de seguridad.”
+📄 8. TÉRMINOS Y CONDICIONES
+Texto obligatorio:
+“El cliente es responsable de proporcionar información verdadera y verificable. Highlight Tax Services no asume responsabilidad por errores derivados de documentos falsos, incompletos o incorrectos. Este sitio no constituye asesoría legal. Al utilizar este portal, aceptas nuestros términos y autorizas el procesamiento de tu información para fines de preparación de impuestos.”
+🎨 9. ESTILO VISUAL
+Tonos azul oscuro (#0A3D62), blanco y verde (#2ECC71)
+Estilo limpio, minimalista y profesional
+Animaciones suaves
+Totalmente responsive
+📌 10. Footer
+Incluir:
+Highlight Tax Services
+Dirección completa
+Teléfono y correo
+Enlaces a: Privacy Policy, Terms, Portal de Clientes
+Texto final:
+“© 2025 Highlight Tax Services. All Rights Reserved.”
+Generar todo el código front-end y backend según lo indicado: HTML/CSS/JS + API + modelos + controladores + vistas + seguridad. El resultado debe ser un sistema profesional, completo y funcional.
