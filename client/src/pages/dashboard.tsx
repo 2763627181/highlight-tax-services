@@ -52,6 +52,18 @@ const statusConfig: Record<string, { label: string; color: string; progress: num
   refund_issued: { label: "Reembolso Emitido", color: "bg-emerald-500", progress: 100 },
 };
 
+const categoryLabels: Record<string, string> = {
+  id_document: "ID",
+  w2: "W-2",
+  form_1099: "1099",
+  bank_statement: "Banco",
+  receipt: "Recibo",
+  previous_return: "Declaración",
+  social_security: "SSN",
+  proof_of_address: "Domicilio",
+  other: "Otro",
+};
+
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user, logout, isLoading: authLoading } = useAuth();
@@ -62,6 +74,8 @@ export default function Dashboard() {
   const [appointmentNotes, setAppointmentNotes] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("other");
+  const [documentDescription, setDocumentDescription] = useState<string>("");
 
   const { data: cases, isLoading: casesLoading } = useQuery<TaxCase[]>({
     queryKey: ["/api/cases"],
@@ -79,10 +93,16 @@ export default function Dashboard() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: async ({ file, caseId }: { file: File; caseId: number }) => {
+    mutationFn: async ({ file, caseId, category, description }: { file: File; caseId?: number; category: string; description?: string }) => {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("caseId", caseId.toString());
+      formData.append("category", category);
+      if (caseId) {
+        formData.append("caseId", caseId.toString());
+      }
+      if (description) {
+        formData.append("description", description);
+      }
       
       const response = await fetch("/api/documents/upload", {
         method: "POST",
@@ -101,6 +121,8 @@ export default function Dashboard() {
       setIsUploadOpen(false);
       setSelectedFile(null);
       setSelectedCaseId(null);
+      setSelectedCategory("other");
+      setDocumentDescription("");
       toast({
         title: "Documento subido",
         description: "Tu documento ha sido subido exitosamente.",
@@ -355,16 +377,35 @@ export default function Dashboard() {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label>Tipo de Documento</Label>
+                        <select
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={selectedCategory}
+                          onChange={(e) => setSelectedCategory(e.target.value)}
+                          data-testid="select-category"
+                        >
+                          <option value="id_document">ID / Identificación</option>
+                          <option value="w2">Formulario W-2</option>
+                          <option value="form_1099">Formulario 1099</option>
+                          <option value="bank_statement">Estado de Cuenta Bancario</option>
+                          <option value="receipt">Recibo / Comprobante</option>
+                          <option value="previous_return">Declaración Anterior</option>
+                          <option value="social_security">Tarjeta de Seguro Social</option>
+                          <option value="proof_of_address">Comprobante de Domicilio</option>
+                          <option value="other">Otro Documento</option>
+                        </select>
+                      </div>
                       {cases && cases.length > 0 && (
                         <div className="space-y-2">
-                          <Label>Caso</Label>
+                          <Label>Caso (Opcional)</Label>
                           <select
                             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             value={selectedCaseId || ""}
-                            onChange={(e) => setSelectedCaseId(Number(e.target.value))}
+                            onChange={(e) => setSelectedCaseId(e.target.value ? Number(e.target.value) : null)}
                             data-testid="select-case"
                           >
-                            <option value="">Selecciona un caso</option>
+                            <option value="">Ninguno (documento general)</option>
                             {cases.map((c) => (
                               <option key={c.id} value={c.id}>
                                 Declaración {c.filingYear}
@@ -385,12 +426,26 @@ export default function Dashboard() {
                           Formatos aceptados: PDF, JPG, PNG, DOC
                         </p>
                       </div>
+                      <div className="space-y-2">
+                        <Label>Descripción (Opcional)</Label>
+                        <Textarea
+                          placeholder="Descripción breve del documento..."
+                          value={documentDescription}
+                          onChange={(e) => setDocumentDescription(e.target.value)}
+                          data-testid="input-document-description"
+                        />
+                      </div>
                       <Button
                         className="w-full"
-                        disabled={!selectedFile || !selectedCaseId || uploadMutation.isPending}
+                        disabled={!selectedFile || uploadMutation.isPending}
                         onClick={() => {
-                          if (selectedFile && selectedCaseId) {
-                            uploadMutation.mutate({ file: selectedFile, caseId: selectedCaseId });
+                          if (selectedFile) {
+                            uploadMutation.mutate({ 
+                              file: selectedFile, 
+                              caseId: selectedCaseId || undefined, 
+                              category: selectedCategory,
+                              description: documentDescription || undefined
+                            });
                           }
                         }}
                         data-testid="button-upload-submit"
@@ -428,7 +483,12 @@ export default function Dashboard() {
                             <FileText className="h-5 w-5 text-muted-foreground" />
                           </div>
                           <div>
-                            <p className="font-medium text-sm">{doc.fileName}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm">{doc.fileName}</p>
+                              <Badge variant="secondary" className="text-xs">
+                                {categoryLabels[doc.category] || "Otro"}
+                              </Badge>
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {format(new Date(doc.createdAt), "d MMM yyyy", { locale: es })}
                               {doc.isFromPreparer && " • Del preparador"}

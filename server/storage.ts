@@ -6,6 +6,7 @@ import {
   messages, 
   contactSubmissions,
   activityLogs,
+  authIdentities,
   type User, 
   type InsertUser,
   type TaxCase,
@@ -20,6 +21,8 @@ import {
   type InsertContactSubmission,
   type ActivityLog,
   type InsertActivityLog,
+  type AuthIdentity,
+  type InsertAuthIdentity,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, count, sum } from "drizzle-orm";
@@ -28,7 +31,12 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined>;
   getAllClients(): Promise<User[]>;
+  getClientsWithDetails(): Promise<(User & { documentsCount: number; casesCount: number })[]>;
+  
+  getAuthIdentityByProvider(provider: string, providerUserId: string): Promise<AuthIdentity | undefined>;
+  createAuthIdentity(identity: InsertAuthIdentity): Promise<AuthIdentity>;
   
   getTaxCasesByClient(clientId: number): Promise<TaxCase[]>;
   getTaxCase(id: number): Promise<TaxCase | undefined>;
@@ -38,6 +46,8 @@ export interface IStorage {
   
   getDocumentsByCase(caseId: number): Promise<Document[]>;
   getDocumentsByClient(clientId: number): Promise<Document[]>;
+  getDocumentsByClientDirect(clientId: number): Promise<Document[]>;
+  getAllDocuments(): Promise<Document[]>;
   getDocument(id: number): Promise<Document | undefined>;
   createDocument(document: InsertDocument): Promise<Document>;
   
@@ -81,8 +91,49 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
   async getAllClients(): Promise<User[]> {
     return db.select().from(users).where(eq(users.role, "client")).orderBy(desc(users.createdAt));
+  }
+
+  async getClientsWithDetails(): Promise<(User & { documentsCount: number; casesCount: number })[]> {
+    const clients = await this.getAllClients();
+    const clientsWithDetails = await Promise.all(
+      clients.map(async (client) => {
+        const clientDocs = await db.select({ count: count() }).from(documents).where(eq(documents.clientId, client.id));
+        const clientCases = await db.select({ count: count() }).from(taxCases).where(eq(taxCases.clientId, client.id));
+        return {
+          ...client,
+          documentsCount: clientDocs[0]?.count || 0,
+          casesCount: clientCases[0]?.count || 0,
+        };
+      })
+    );
+    return clientsWithDetails;
+  }
+
+  async getAuthIdentityByProvider(provider: string, providerUserId: string): Promise<AuthIdentity | undefined> {
+    const [identity] = await db
+      .select()
+      .from(authIdentities)
+      .where(and(eq(authIdentities.provider, provider as any), eq(authIdentities.providerUserId, providerUserId)));
+    return identity || undefined;
+  }
+
+  async createAuthIdentity(identity: InsertAuthIdentity): Promise<AuthIdentity> {
+    const [newIdentity] = await db
+      .insert(authIdentities)
+      .values(identity)
+      .returning();
+    return newIdentity;
   }
 
   async getTaxCasesByClient(clientId: number): Promise<TaxCase[]> {
@@ -127,17 +178,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDocumentsByClient(clientId: number): Promise<Document[]> {
-    const clientCases = await this.getTaxCasesByClient(clientId);
-    const caseIds = clientCases.map(c => c.id);
-    
-    if (caseIds.length === 0) return [];
-    
-    const allDocs: Document[] = [];
-    for (const caseId of caseIds) {
-      const docs = await db.select().from(documents).where(eq(documents.caseId, caseId));
-      allDocs.push(...docs);
-    }
-    return allDocs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return db.select().from(documents).where(eq(documents.clientId, clientId)).orderBy(desc(documents.createdAt));
+  }
+
+  async getDocumentsByClientDirect(clientId: number): Promise<Document[]> {
+    return db.select().from(documents).where(eq(documents.clientId, clientId)).orderBy(desc(documents.createdAt));
+  }
+
+  async getAllDocuments(): Promise<Document[]> {
+    return db.select().from(documents).orderBy(desc(documents.createdAt));
   }
 
   async getDocument(id: number): Promise<Document | undefined> {

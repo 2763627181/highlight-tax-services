@@ -8,6 +8,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
+import { setupAuth } from "./replitAuth";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -113,6 +114,8 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  await setupAuth(app);
+
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
       const result = registerSchema.safeParse(req.body);
@@ -270,22 +273,31 @@ export async function registerRoutes(
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const caseId = parseInt(req.body.caseId);
-      if (isNaN(caseId)) {
-        return res.status(400).json({ message: "Invalid case ID" });
+      const { caseId, category, description } = req.body;
+      let validCaseId: number | null = null;
+
+      if (caseId) {
+        validCaseId = parseInt(caseId);
+        if (!isNaN(validCaseId)) {
+          const taxCase = await storage.getTaxCase(validCaseId);
+          if (!taxCase || taxCase.clientId !== req.user!.id) {
+            return res.status(403).json({ message: "Access denied" });
+          }
+        }
       }
 
-      const taxCase = await storage.getTaxCase(caseId);
-      if (!taxCase || taxCase.clientId !== req.user!.id) {
-        return res.status(403).json({ message: "Access denied" });
-      }
+      const validCategories = ["id_document", "w2", "form_1099", "bank_statement", "receipt", "previous_return", "social_security", "proof_of_address", "other"];
+      const docCategory = validCategories.includes(category) ? category : "other";
 
       const document = await storage.createDocument({
-        caseId,
+        caseId: validCaseId,
+        clientId: req.user!.id,
         fileName: req.file.originalname,
         filePath: req.file.path,
         fileType: req.file.mimetype,
         fileSize: req.file.size,
+        category: docCategory,
+        description: description || null,
         uploadedById: req.user!.id,
         isFromPreparer: false,
       });
@@ -293,7 +305,7 @@ export async function registerRoutes(
       await storage.createActivityLog({
         userId: req.user!.id,
         action: "document_uploaded",
-        details: `Document uploaded: ${req.file.originalname}`,
+        details: `Document uploaded: ${req.file.originalname} (${docCategory})`,
       });
 
       res.json(document);
@@ -312,13 +324,8 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Document not found" });
       }
 
-      const taxCase = await storage.getTaxCase(document.caseId);
-      if (!taxCase) {
-        return res.status(404).json({ message: "Case not found" });
-      }
-
       const isAdmin = req.user!.role === "admin" || req.user!.role === "preparer";
-      const isOwner = taxCase.clientId === req.user!.id;
+      const isOwner = document.clientId === req.user!.id;
 
       if (!isAdmin && !isOwner) {
         return res.status(403).json({ message: "Access denied" });
@@ -385,11 +392,38 @@ export async function registerRoutes(
 
   app.get("/api/admin/clients", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      const clients = await storage.getAllClients();
+      const clients = await storage.getClientsWithDetails();
       res.json(clients);
     } catch (error) {
       console.error("Get clients error:", error);
       res.status(500).json({ message: "Failed to get clients" });
+    }
+  });
+
+  app.get("/api/admin/clients/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const clientId = parseInt(req.params.id);
+      const client = await storage.getUser(clientId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      const documents = await storage.getDocumentsByClient(clientId);
+      const cases = await storage.getTaxCasesByClient(clientId);
+      const appointments = await storage.getAppointmentsByClient(clientId);
+      res.json({ client, documents, cases, appointments });
+    } catch (error) {
+      console.error("Get client details error:", error);
+      res.status(500).json({ message: "Failed to get client details" });
+    }
+  });
+
+  app.get("/api/admin/documents", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const documents = await storage.getAllDocuments();
+      res.json(documents);
+    } catch (error) {
+      console.error("Get documents error:", error);
+      res.status(500).json({ message: "Failed to get documents" });
     }
   });
 

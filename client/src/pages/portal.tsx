@@ -19,8 +19,10 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, LogIn, UserPlus, FileText } from "lucide-react";
+import { SiGoogle, SiGithub, SiApple } from "react-icons/si";
 
 const loginSchema = z.object({
   email: z.string().email("Ingresa un correo electrónico válido"),
@@ -205,6 +207,47 @@ export default function Portal() {
                       </Button>
                     </form>
                   </Form>
+
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <Separator />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">
+                        O continúa con
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <a href="/api/login" className="block">
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        data-testid="button-google-login"
+                      >
+                        <SiGoogle className="h-4 w-4" />
+                      </Button>
+                    </a>
+                    <a href="/api/login" className="block">
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        data-testid="button-github-login"
+                      >
+                        <SiGithub className="h-4 w-4" />
+                      </Button>
+                    </a>
+                    <a href="/api/login" className="block">
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        data-testid="button-apple-login"
+                      >
+                        <SiApple className="h-4 w-4" />
+                      </Button>
+                    </a>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="register" className="mt-6">

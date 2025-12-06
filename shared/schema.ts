@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, boolean, decimal, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, boolean, decimal, pgEnum, jsonb, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -8,6 +8,28 @@ export const userRoleEnum = pgEnum("user_role", ["admin", "preparer", "client"])
 export const caseStatusEnum = pgEnum("case_status", ["pending", "in_process", "sent_to_irs", "approved", "refund_issued"]);
 export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", "completed", "cancelled"]);
 export const filingStatusEnum = pgEnum("filing_status", ["single", "married_filing_jointly", "married_filing_separately", "head_of_household", "qualifying_widow"]);
+export const authProviderEnum = pgEnum("auth_provider", ["local", "google", "github", "apple", "replit"]);
+export const documentCategoryEnum = pgEnum("document_category", [
+  "id_document",
+  "w2",
+  "form_1099",
+  "bank_statement",
+  "receipt",
+  "previous_return",
+  "social_security",
+  "proof_of_address",
+  "other"
+]);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)]
+);
 
 export const users = pgTable("users", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
@@ -17,6 +39,25 @@ export const users = pgTable("users", {
   name: varchar("name", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 50 }),
   address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  zipCode: varchar("zip_code", { length: 20 }),
+  ssn: varchar("ssn", { length: 20 }),
+  dateOfBirth: timestamp("date_of_birth"),
+  profileImageUrl: varchar("profile_image_url", { length: 500 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const authIdentities = pgTable("auth_identities", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  provider: authProviderEnum("provider").notNull(),
+  providerUserId: varchar("provider_user_id", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }),
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
+  avatarUrl: varchar("avatar_url", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -35,11 +76,14 @@ export const taxCases = pgTable("tax_cases", {
 
 export const documents = pgTable("documents", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  caseId: integer("case_id").notNull().references(() => taxCases.id, { onDelete: "cascade" }),
+  caseId: integer("case_id").references(() => taxCases.id, { onDelete: "cascade" }),
+  clientId: integer("client_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   fileName: varchar("file_name", { length: 255 }).notNull(),
   filePath: text("file_path").notNull(),
   fileType: varchar("file_type", { length: 100 }).notNull(),
   fileSize: integer("file_size"),
+  category: documentCategoryEnum("category").notNull().default("other"),
+  description: text("description"),
   uploadedById: integer("uploaded_by_id").notNull().references(() => users.id),
   isFromPreparer: boolean("is_from_preparer").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -128,6 +172,12 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAuthIdentitySchema = createInsertSchema(authIdentities).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertTaxCaseSchema = createInsertSchema(taxCases).omit({
@@ -177,6 +227,8 @@ export const registerSchema = insertUserSchema.extend({
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type AuthIdentity = typeof authIdentities.$inferSelect;
+export type InsertAuthIdentity = z.infer<typeof insertAuthIdentitySchema>;
 export type TaxCase = typeof taxCases.$inferSelect;
 export type InsertTaxCase = z.infer<typeof insertTaxCaseSchema>;
 export type Document = typeof documents.$inferSelect;

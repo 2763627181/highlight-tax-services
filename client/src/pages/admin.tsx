@@ -89,6 +89,11 @@ interface CaseWithClient extends TaxCase {
   client?: User;
 }
 
+interface ClientWithDetails extends User {
+  documentsCount: number;
+  casesCount: number;
+}
+
 export default function Admin() {
   const [, setLocation] = useLocation();
   const { user, logout, isLoading: authLoading } = useAuth();
@@ -111,7 +116,7 @@ export default function Admin() {
     enabled: !!user && (user.role === "admin" || user.role === "preparer"),
   });
 
-  const { data: clients, isLoading: clientsLoading } = useQuery<User[]>({
+  const { data: clients, isLoading: clientsLoading } = useQuery<ClientWithDetails[]>({
     queryKey: ["/api/admin/clients"],
     enabled: !!user && (user.role === "admin" || user.role === "preparer"),
   });
@@ -589,6 +594,8 @@ export default function Admin() {
                           <TableHead>Nombre</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>Teléfono</TableHead>
+                          <TableHead>Casos</TableHead>
+                          <TableHead>Documentos</TableHead>
                           <TableHead>Registro</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -607,6 +614,18 @@ export default function Admin() {
                             </TableCell>
                             <TableCell>{client.email}</TableCell>
                             <TableCell>{client.phone || "-"}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="gap-1">
+                                <FolderOpen className="h-3 w-3" />
+                                {client.casesCount || 0}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="gap-1">
+                                <FileText className="h-3 w-3" />
+                                {client.documentsCount || 0}
+                              </Badge>
+                            </TableCell>
                             <TableCell>
                               {format(new Date(client.createdAt), "d MMM yyyy", {
                                 locale: es,
