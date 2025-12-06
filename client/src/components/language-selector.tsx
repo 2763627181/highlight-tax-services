@@ -6,7 +6,7 @@
  * Muestra un menú desplegable para cambiar entre los idiomas soportados.
  */
 
-import { Globe } from "lucide-react";
+import { Globe, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -53,10 +53,12 @@ export function LanguageSelector({ variant = "default", className }: LanguageSel
             )}
             data-testid={`language-option-${lang.code}`}
           >
-            <span className="text-base">{lang.flag}</span>
+            <span className="text-xs font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              {lang.flag}
+            </span>
             <span className="flex-1">{lang.nativeName}</span>
             {language === lang.code && (
-              <span className="text-xs text-muted-foreground">✓</span>
+              <Check className="h-4 w-4 text-muted-foreground" />
             )}
           </DropdownMenuItem>
         ))}

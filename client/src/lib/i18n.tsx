@@ -23,12 +23,12 @@ export interface LanguageInfo {
 }
 
 export const LANGUAGES: LanguageInfo[] = [
-  { code: "en", name: "English", nativeName: "English", flag: "🇺🇸" },
-  { code: "es", name: "Spanish", nativeName: "Español", flag: "🇪🇸" },
-  { code: "fr", name: "French", nativeName: "Français", flag: "🇫🇷" },
-  { code: "pt", name: "Portuguese", nativeName: "Português", flag: "🇧🇷" },
-  { code: "zh", name: "Chinese", nativeName: "中文", flag: "🇨🇳" },
-  { code: "ht", name: "Haitian Creole", nativeName: "Kreyòl Ayisyen", flag: "🇭🇹" },
+  { code: "en", name: "English", nativeName: "English", flag: "EN" },
+  { code: "es", name: "Spanish", nativeName: "Español", flag: "ES" },
+  { code: "fr", name: "French", nativeName: "Français", flag: "FR" },
+  { code: "pt", name: "Portuguese", nativeName: "Português", flag: "PT" },
+  { code: "zh", name: "Chinese", nativeName: "中文", flag: "ZH" },
+  { code: "ht", name: "Haitian Creole", nativeName: "Kreyòl Ayisyen", flag: "HT" },
 ];
 
 type TranslationKey = keyof typeof translations.en;

@@ -31,7 +31,8 @@ client/
 │   │   ├── contact-section.tsx
 │   │   ├── footer.tsx
 │   │   ├── whatsapp-button.tsx
-│   │   └── theme-toggle.tsx
+│   │   ├── theme-toggle.tsx
+│   │   └── language-selector.tsx
 │   ├── pages/               # Page components
 │   │   ├── home.tsx         # Landing page
 │   │   ├── portal.tsx       # Login/Register
@@ -43,6 +44,7 @@ client/
 │   ├── lib/
 │   │   ├── auth-context.tsx # Authentication context
 │   │   ├── theme-provider.tsx # Dark mode provider
+│   │   ├── i18n.tsx         # Multi-language support
 │   │   └── queryClient.ts   # TanStack Query setup
 │   └── App.tsx              # Main app with routing
 server/
@@ -131,7 +133,7 @@ shared/
    - Services grid with service-specific WhatsApp auto-messages
    - About section with contact info
    - Contact form
-   - Bilingual support (English/Spanish)
+   - Multi-language support (6 languages)
 
 2. **Client Portal**
    - Secure registration/login (email/password)
@@ -177,6 +179,20 @@ shared/
 6. **WhatsApp Integration**
    - Floating button for quick contact
    - Service-specific auto-messages when clicking service cards
+
+7. **Multi-Language Support (i18n)**
+   - 6 supported languages: English, Spanish, French, Portuguese, Chinese, Haitian Creole
+   - Language selector with dropdown in header across all pages
+   - Language persistence via localStorage (key: "highlight-tax-language")
+   - Complete translations for:
+     - Landing page (hero, services, about, contact, footer)
+     - Client portal (login, register forms)
+     - Client dashboard (cases, documents, appointments, messages)
+     - Admin dashboard (all tabs and dialogs)
+   - Date formatting adapts to selected language using date-fns locales
+   - Implementation files:
+     - i18n context: `client/src/lib/i18n.tsx`
+     - Language selector: `client/src/components/language-selector.tsx`
 
 ## Running the Application
 
