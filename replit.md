@@ -194,6 +194,16 @@ shared/
      - i18n context: `client/src/lib/i18n.tsx`
      - Language selector: `client/src/components/language-selector.tsx`
 
+## Documentation Files
+
+The project includes comprehensive documentation:
+
+- **replit.md** - General project overview and features (this file)
+- **API_DOCUMENTATION.md** - Complete REST API documentation with endpoints, schemas, and examples
+- **CODE_ARCHITECTURE.md** - System architecture, data flows, and design patterns
+- **SECURITY.md** - Security implementation guide and best practices
+- **design_guidelines.md** - UI/UX design guidelines and component usage
+
 ## Running the Application
 
 The application runs on port 5000:
