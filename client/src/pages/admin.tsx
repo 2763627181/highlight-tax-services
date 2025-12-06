@@ -1,7 +1,13 @@
+/**
+ * @fileoverview Admin Dashboard Page
+ * Panel de administración con soporte multi-idioma
+ */
+
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -38,6 +44,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSelector } from "@/components/language-selector";
 import { MessagingPanel } from "@/components/messaging";
 import { AnalyticsDashboard } from "@/components/analytics-dashboard";
 import type { User, TaxCase, Document, Appointment, ContactSubmission } from "@shared/schema";
@@ -62,15 +69,17 @@ import {
   DollarSign,
 } from "lucide-react";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import { enUS, es, fr, pt, zhCN } from "date-fns/locale";
 
-const statusOptions = [
-  { value: "pending", label: "Pendiente" },
-  { value: "in_process", label: "En Proceso" },
-  { value: "sent_to_irs", label: "Enviado al IRS" },
-  { value: "approved", label: "Aprobado" },
-  { value: "refund_issued", label: "Reembolso Emitido" },
-];
+const getDateLocale = (lang: string) => {
+  switch (lang) {
+    case "es": return es;
+    case "fr": return fr;
+    case "pt": return pt;
+    case "zh": return zhCN;
+    default: return enUS;
+  }
+};
 
 const statusColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
@@ -96,10 +105,452 @@ interface ClientWithDetails extends User {
   casesCount: number;
 }
 
+const translations = {
+  en: {
+    adminPanel: "Admin Panel",
+    dashboard: "Dashboard",
+    dashboardDesc: "Manage clients, cases, and appointments",
+    totalClients: "Total Clients",
+    pendingCases: "Pending Cases",
+    completedCases: "Completed Cases",
+    estRefunds: "Est. Refunds",
+    cases: "Cases",
+    clients: "Clients",
+    appointments: "Appointments",
+    contacts: "Contacts",
+    messages: "Messages",
+    analytics: "Analytics",
+    taxCases: "Tax Cases",
+    manageActiveCases: "Manage all active cases",
+    newCase: "New Case",
+    createNewCase: "Create New Case",
+    createCaseDesc: "Create a new tax case for a client",
+    client: "Client",
+    selectClient: "Select a client",
+    fiscalYear: "Fiscal Year",
+    dependents: "Dependents",
+    filingStatus: "Filing Status",
+    single: "Single",
+    marriedJoint: "Married (Joint)",
+    marriedSeparate: "Married (Separate)",
+    headHousehold: "Head of Household",
+    creating: "Creating...",
+    createCase: "Create Case",
+    year: "Year",
+    status: "Status",
+    amount: "Amount",
+    date: "Date",
+    actions: "Actions",
+    noCases: "No cases registered",
+    clientsList: "List of all registered clients",
+    name: "Name",
+    email: "Email",
+    phone: "Phone",
+    registration: "Registration",
+    noClients: "No clients registered",
+    appointmentsList: "Manage scheduled appointments",
+    scheduled: "Scheduled",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    notes: "Notes",
+    noAppointments: "No appointments scheduled",
+    contactMessages: "Contact Messages",
+    contactMessagesDesc: "Messages received from contact form",
+    noContacts: "No contact messages",
+    editCase: "Edit Case",
+    editCaseDesc: "Update case status and notes",
+    finalAmount: "Final Amount ($)",
+    internalNotes: "Internal Notes",
+    notesPlaceholder: "Notes about the case...",
+    saving: "Saving...",
+    saveChanges: "Save Changes",
+    caseUpdated: "Case updated",
+    caseUpdatedDesc: "The case has been updated successfully.",
+    caseCreated: "Case created",
+    caseCreatedDesc: "The new case has been created successfully.",
+    error: "Error",
+    updateError: "Could not update the case.",
+    createError: "Could not create the case.",
+    statusPending: "Pending",
+    statusInProcess: "In Process",
+    statusSentToIRS: "Sent to IRS",
+    statusApproved: "Approved",
+    statusRefundIssued: "Refund Issued",
+    admin: "Admin",
+    preparer: "Preparer",
+  },
+  es: {
+    adminPanel: "Panel Administrativo",
+    dashboard: "Dashboard",
+    dashboardDesc: "Gestiona clientes, casos y citas",
+    totalClients: "Total Clientes",
+    pendingCases: "Casos Pendientes",
+    completedCases: "Casos Completados",
+    estRefunds: "Reembolsos Est.",
+    cases: "Casos",
+    clients: "Clientes",
+    appointments: "Citas",
+    contacts: "Contactos",
+    messages: "Mensajes",
+    analytics: "Análisis",
+    taxCases: "Casos de Impuestos",
+    manageActiveCases: "Gestiona todos los casos activos",
+    newCase: "Nuevo Caso",
+    createNewCase: "Crear Nuevo Caso",
+    createCaseDesc: "Crea un nuevo caso de impuestos para un cliente",
+    client: "Cliente",
+    selectClient: "Selecciona un cliente",
+    fiscalYear: "Año Fiscal",
+    dependents: "Dependientes",
+    filingStatus: "Estado Civil",
+    single: "Soltero",
+    marriedJoint: "Casado (Conjunto)",
+    marriedSeparate: "Casado (Separado)",
+    headHousehold: "Jefe de Familia",
+    creating: "Creando...",
+    createCase: "Crear Caso",
+    year: "Año",
+    status: "Estado",
+    amount: "Monto",
+    date: "Fecha",
+    actions: "Acciones",
+    noCases: "No hay casos registrados",
+    clientsList: "Lista de todos los clientes registrados",
+    name: "Nombre",
+    email: "Email",
+    phone: "Teléfono",
+    registration: "Registro",
+    noClients: "No hay clientes registrados",
+    appointmentsList: "Gestiona las citas programadas",
+    scheduled: "Programada",
+    completed: "Completada",
+    cancelled: "Cancelada",
+    notes: "Notas",
+    noAppointments: "No hay citas programadas",
+    contactMessages: "Mensajes de Contacto",
+    contactMessagesDesc: "Mensajes recibidos del formulario de contacto",
+    noContacts: "No hay mensajes de contacto",
+    editCase: "Editar Caso",
+    editCaseDesc: "Actualiza el estado y notas del caso",
+    finalAmount: "Monto Final ($)",
+    internalNotes: "Notas Internas",
+    notesPlaceholder: "Notas sobre el caso...",
+    saving: "Guardando...",
+    saveChanges: "Guardar Cambios",
+    caseUpdated: "Caso actualizado",
+    caseUpdatedDesc: "El caso ha sido actualizado exitosamente.",
+    caseCreated: "Caso creado",
+    caseCreatedDesc: "El nuevo caso ha sido creado exitosamente.",
+    error: "Error",
+    updateError: "No se pudo actualizar el caso.",
+    createError: "No se pudo crear el caso.",
+    statusPending: "Pendiente",
+    statusInProcess: "En Proceso",
+    statusSentToIRS: "Enviado al IRS",
+    statusApproved: "Aprobado",
+    statusRefundIssued: "Reembolso Emitido",
+    admin: "Admin",
+    preparer: "Preparador",
+  },
+  fr: {
+    adminPanel: "Panneau d'Administration",
+    dashboard: "Tableau de Bord",
+    dashboardDesc: "Gérez les clients, dossiers et rendez-vous",
+    totalClients: "Total Clients",
+    pendingCases: "Dossiers en Attente",
+    completedCases: "Dossiers Terminés",
+    estRefunds: "Remboursements Est.",
+    cases: "Dossiers",
+    clients: "Clients",
+    appointments: "Rendez-vous",
+    contacts: "Contacts",
+    messages: "Messages",
+    analytics: "Analytique",
+    taxCases: "Dossiers Fiscaux",
+    manageActiveCases: "Gérez tous les dossiers actifs",
+    newCase: "Nouveau Dossier",
+    createNewCase: "Créer un Nouveau Dossier",
+    createCaseDesc: "Créez un nouveau dossier fiscal pour un client",
+    client: "Client",
+    selectClient: "Sélectionnez un client",
+    fiscalYear: "Année Fiscale",
+    dependents: "Personnes à Charge",
+    filingStatus: "Situation Familiale",
+    single: "Célibataire",
+    marriedJoint: "Marié (Conjoint)",
+    marriedSeparate: "Marié (Séparé)",
+    headHousehold: "Chef de Famille",
+    creating: "Création...",
+    createCase: "Créer Dossier",
+    year: "Année",
+    status: "Statut",
+    amount: "Montant",
+    date: "Date",
+    actions: "Actions",
+    noCases: "Aucun dossier enregistré",
+    clientsList: "Liste de tous les clients enregistrés",
+    name: "Nom",
+    email: "Email",
+    phone: "Téléphone",
+    registration: "Inscription",
+    noClients: "Aucun client enregistré",
+    appointmentsList: "Gérez les rendez-vous programmés",
+    scheduled: "Programmé",
+    completed: "Terminé",
+    cancelled: "Annulé",
+    notes: "Notes",
+    noAppointments: "Aucun rendez-vous programmé",
+    contactMessages: "Messages de Contact",
+    contactMessagesDesc: "Messages reçus du formulaire de contact",
+    noContacts: "Aucun message de contact",
+    editCase: "Modifier Dossier",
+    editCaseDesc: "Mettez à jour le statut et les notes du dossier",
+    finalAmount: "Montant Final ($)",
+    internalNotes: "Notes Internes",
+    notesPlaceholder: "Notes sur le dossier...",
+    saving: "Enregistrement...",
+    saveChanges: "Enregistrer les Modifications",
+    caseUpdated: "Dossier mis à jour",
+    caseUpdatedDesc: "Le dossier a été mis à jour avec succès.",
+    caseCreated: "Dossier créé",
+    caseCreatedDesc: "Le nouveau dossier a été créé avec succès.",
+    error: "Erreur",
+    updateError: "Impossible de mettre à jour le dossier.",
+    createError: "Impossible de créer le dossier.",
+    statusPending: "En attente",
+    statusInProcess: "En cours",
+    statusSentToIRS: "Envoyé à l'IRS",
+    statusApproved: "Approuvé",
+    statusRefundIssued: "Remboursement Émis",
+    admin: "Admin",
+    preparer: "Préparateur",
+  },
+  pt: {
+    adminPanel: "Painel Administrativo",
+    dashboard: "Dashboard",
+    dashboardDesc: "Gerencie clientes, casos e consultas",
+    totalClients: "Total de Clientes",
+    pendingCases: "Casos Pendentes",
+    completedCases: "Casos Concluídos",
+    estRefunds: "Reembolsos Est.",
+    cases: "Casos",
+    clients: "Clientes",
+    appointments: "Consultas",
+    contacts: "Contatos",
+    messages: "Mensagens",
+    analytics: "Análise",
+    taxCases: "Casos Fiscais",
+    manageActiveCases: "Gerencie todos os casos ativos",
+    newCase: "Novo Caso",
+    createNewCase: "Criar Novo Caso",
+    createCaseDesc: "Crie um novo caso fiscal para um cliente",
+    client: "Cliente",
+    selectClient: "Selecione um cliente",
+    fiscalYear: "Ano Fiscal",
+    dependents: "Dependentes",
+    filingStatus: "Estado Civil",
+    single: "Solteiro",
+    marriedJoint: "Casado (Conjunto)",
+    marriedSeparate: "Casado (Separado)",
+    headHousehold: "Chefe de Família",
+    creating: "Criando...",
+    createCase: "Criar Caso",
+    year: "Ano",
+    status: "Status",
+    amount: "Valor",
+    date: "Data",
+    actions: "Ações",
+    noCases: "Nenhum caso registrado",
+    clientsList: "Lista de todos os clientes registrados",
+    name: "Nome",
+    email: "Email",
+    phone: "Telefone",
+    registration: "Registro",
+    noClients: "Nenhum cliente registrado",
+    appointmentsList: "Gerencie as consultas agendadas",
+    scheduled: "Agendada",
+    completed: "Concluída",
+    cancelled: "Cancelada",
+    notes: "Notas",
+    noAppointments: "Nenhuma consulta agendada",
+    contactMessages: "Mensagens de Contato",
+    contactMessagesDesc: "Mensagens recebidas do formulário de contato",
+    noContacts: "Nenhuma mensagem de contato",
+    editCase: "Editar Caso",
+    editCaseDesc: "Atualize o status e notas do caso",
+    finalAmount: "Valor Final ($)",
+    internalNotes: "Notas Internas",
+    notesPlaceholder: "Notas sobre o caso...",
+    saving: "Salvando...",
+    saveChanges: "Salvar Alterações",
+    caseUpdated: "Caso atualizado",
+    caseUpdatedDesc: "O caso foi atualizado com sucesso.",
+    caseCreated: "Caso criado",
+    caseCreatedDesc: "O novo caso foi criado com sucesso.",
+    error: "Erro",
+    updateError: "Não foi possível atualizar o caso.",
+    createError: "Não foi possível criar o caso.",
+    statusPending: "Pendente",
+    statusInProcess: "Em Processo",
+    statusSentToIRS: "Enviado ao IRS",
+    statusApproved: "Aprovado",
+    statusRefundIssued: "Reembolso Emitido",
+    admin: "Admin",
+    preparer: "Preparador",
+  },
+  zh: {
+    adminPanel: "管理面板",
+    dashboard: "控制台",
+    dashboardDesc: "管理客户、案例和预约",
+    totalClients: "总客户数",
+    pendingCases: "待处理案例",
+    completedCases: "已完成案例",
+    estRefunds: "预计退款",
+    cases: "案例",
+    clients: "客户",
+    appointments: "预约",
+    contacts: "联系人",
+    messages: "消息",
+    analytics: "分析",
+    taxCases: "税务案例",
+    manageActiveCases: "管理所有活跃案例",
+    newCase: "新案例",
+    createNewCase: "创建新案例",
+    createCaseDesc: "为客户创建新的税务案例",
+    client: "客户",
+    selectClient: "选择客户",
+    fiscalYear: "财年",
+    dependents: "受抚养人",
+    filingStatus: "申报状态",
+    single: "单身",
+    marriedJoint: "已婚（联合）",
+    marriedSeparate: "已婚（分开）",
+    headHousehold: "户主",
+    creating: "创建中...",
+    createCase: "创建案例",
+    year: "年份",
+    status: "状态",
+    amount: "金额",
+    date: "日期",
+    actions: "操作",
+    noCases: "没有注册案例",
+    clientsList: "所有注册客户列表",
+    name: "姓名",
+    email: "电子邮件",
+    phone: "电话",
+    registration: "注册",
+    noClients: "没有注册客户",
+    appointmentsList: "管理预定的预约",
+    scheduled: "已安排",
+    completed: "已完成",
+    cancelled: "已取消",
+    notes: "备注",
+    noAppointments: "没有预定的预约",
+    contactMessages: "联系消息",
+    contactMessagesDesc: "从联系表单收到的消息",
+    noContacts: "没有联系消息",
+    editCase: "编辑案例",
+    editCaseDesc: "更新案例状态和备注",
+    finalAmount: "最终金额 ($)",
+    internalNotes: "内部备注",
+    notesPlaceholder: "关于案例的备注...",
+    saving: "保存中...",
+    saveChanges: "保存更改",
+    caseUpdated: "案例已更新",
+    caseUpdatedDesc: "案例已成功更新。",
+    caseCreated: "案例已创建",
+    caseCreatedDesc: "新案例已成功创建。",
+    error: "错误",
+    updateError: "无法更新案例。",
+    createError: "无法创建案例。",
+    statusPending: "待处理",
+    statusInProcess: "处理中",
+    statusSentToIRS: "已发送至IRS",
+    statusApproved: "已批准",
+    statusRefundIssued: "退款已发放",
+    admin: "管理员",
+    preparer: "准备者",
+  },
+  ht: {
+    adminPanel: "Panèl Administrasyon",
+    dashboard: "Tablo Kontwòl",
+    dashboardDesc: "Jere kliyan, dosye ak randevou",
+    totalClients: "Total Kliyan",
+    pendingCases: "Dosye an Atant",
+    completedCases: "Dosye Fini",
+    estRefunds: "Ranbousman Est.",
+    cases: "Dosye",
+    clients: "Kliyan",
+    appointments: "Randevou",
+    contacts: "Kontak",
+    messages: "Mesaj",
+    analytics: "Analitik",
+    taxCases: "Dosye Taks",
+    manageActiveCases: "Jere tout dosye aktif",
+    newCase: "Nouvo Dosye",
+    createNewCase: "Kreye Nouvo Dosye",
+    createCaseDesc: "Kreye yon nouvo dosye taks pou yon kliyan",
+    client: "Kliyan",
+    selectClient: "Chwazi yon kliyan",
+    fiscalYear: "Ane Fiskal",
+    dependents: "Depandan",
+    filingStatus: "Estati Sivil",
+    single: "Selibatè",
+    marriedJoint: "Marye (Ansanm)",
+    marriedSeparate: "Marye (Separe)",
+    headHousehold: "Chèf Kay",
+    creating: "Ap kreye...",
+    createCase: "Kreye Dosye",
+    year: "Ane",
+    status: "Estati",
+    amount: "Montan",
+    date: "Dat",
+    actions: "Aksyon",
+    noCases: "Pa gen dosye anrejistre",
+    clientsList: "Lis tout kliyan anrejistre",
+    name: "Non",
+    email: "Imèl",
+    phone: "Telefòn",
+    registration: "Enskripsyon",
+    noClients: "Pa gen kliyan anrejistre",
+    appointmentsList: "Jere randevou pwograme",
+    scheduled: "Pwograme",
+    completed: "Fini",
+    cancelled: "Anile",
+    notes: "Nòt",
+    noAppointments: "Pa gen randevou pwograme",
+    contactMessages: "Mesaj Kontak",
+    contactMessagesDesc: "Mesaj ki resevwa nan fòm kontak",
+    noContacts: "Pa gen mesaj kontak",
+    editCase: "Modifye Dosye",
+    editCaseDesc: "Mete ajou estati ak nòt dosye a",
+    finalAmount: "Montan Final ($)",
+    internalNotes: "Nòt Entèn",
+    notesPlaceholder: "Nòt sou dosye a...",
+    saving: "Ap anrejistre...",
+    saveChanges: "Anrejistre Chanjman",
+    caseUpdated: "Dosye mete ajou",
+    caseUpdatedDesc: "Dosye a mete ajou avèk siksè.",
+    caseCreated: "Dosye kreye",
+    caseCreatedDesc: "Nouvo dosye a kreye avèk siksè.",
+    error: "Erè",
+    updateError: "Pa kapab mete dosye a ajou.",
+    createError: "Pa kapab kreye dosye a.",
+    statusPending: "An Atant",
+    statusInProcess: "An Pwosesis",
+    statusSentToIRS: "Voye bay IRS",
+    statusApproved: "Apwouve",
+    statusRefundIssued: "Ranbousman Emèt",
+    admin: "Admin",
+    preparer: "Preparatè",
+  },
+};
+
 export default function Admin() {
   const [, setLocation] = useLocation();
   const { user, logout, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { language } = useI18n();
   const [selectedCase, setSelectedCase] = useState<CaseWithClient | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreateCaseOpen, setIsCreateCaseOpen] = useState(false);
@@ -112,6 +563,16 @@ export default function Admin() {
     filingStatus: "single",
     dependents: 0,
   });
+
+  const t = translations[language as keyof typeof translations] || translations.en;
+
+  const statusOptions = [
+    { value: "pending", label: t.statusPending },
+    { value: "in_process", label: t.statusInProcess },
+    { value: "sent_to_irs", label: t.statusSentToIRS },
+    { value: "approved", label: t.statusApproved },
+    { value: "refund_issued", label: t.statusRefundIssued },
+  ];
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
@@ -152,14 +613,14 @@ export default function Admin() {
       setIsEditOpen(false);
       setSelectedCase(null);
       toast({
-        title: "Caso actualizado",
-        description: "El caso ha sido actualizado exitosamente.",
+        title: t.caseUpdated,
+        description: t.caseUpdatedDesc,
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "No se pudo actualizar el caso.",
+        title: t.error,
+        description: t.updateError,
         variant: "destructive",
       });
     },
@@ -180,14 +641,14 @@ export default function Admin() {
         dependents: 0,
       });
       toast({
-        title: "Caso creado",
-        description: "El nuevo caso ha sido creado exitosamente.",
+        title: t.caseCreated,
+        description: t.caseCreatedDesc,
       });
     },
     onError: () => {
       toast({
-        title: "Error",
-        description: "No se pudo crear el caso.",
+        title: t.error,
+        description: t.createError,
         variant: "destructive",
       });
     },
@@ -228,11 +689,17 @@ export default function Admin() {
       .slice(0, 2);
   };
 
+  const appointmentStatusLabels: Record<string, string> = {
+    scheduled: t.scheduled,
+    completed: t.completed,
+    cancelled: t.cancelled,
+  };
+
   return (
     <div className="min-h-screen bg-muted/30" data-testid="page-admin">
       <header className="sticky top-0 z-40 bg-background border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between gap-4 h-16">
             <div className="flex items-center gap-4">
               <Link href="/">
                 <Button variant="ghost" size="icon" data-testid="button-home">
@@ -241,11 +708,12 @@ export default function Admin() {
               </Link>
               <div className="flex items-center gap-2">
                 <FileText className="h-6 w-6 text-primary" />
-                <span className="font-semibold hidden sm:block">Panel Administrativo</span>
+                <span className="font-semibold hidden sm:block">{t.adminPanel}</span>
               </div>
             </div>
             
             <div className="flex items-center gap-3">
+              <LanguageSelector variant="compact" />
               <ThemeToggle />
               <div className="flex items-center gap-2">
                 <Avatar className="h-8 w-8">
@@ -256,7 +724,7 @@ export default function Admin() {
                 <div className="hidden sm:block">
                   <span className="text-sm font-medium">{user.name}</span>
                   <Badge variant="secondary" className="ml-2 text-xs">
-                    {user.role === "admin" ? "Admin" : "Preparador"}
+                    {user.role === "admin" ? t.admin : t.preparer}
                   </Badge>
                 </div>
               </div>
@@ -275,9 +743,9 @@ export default function Admin() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{t.dashboard}</h1>
           <p className="text-muted-foreground mt-1">
-            Gestiona clientes, casos y citas
+            {t.dashboardDesc}
           </p>
         </div>
 
@@ -294,7 +762,7 @@ export default function Admin() {
                   ) : (
                     <p className="text-2xl font-bold">{stats?.totalClients || 0}</p>
                   )}
-                  <p className="text-sm text-muted-foreground">Total Clientes</p>
+                  <p className="text-sm text-muted-foreground">{t.totalClients}</p>
                 </div>
               </div>
             </CardContent>
@@ -312,7 +780,7 @@ export default function Admin() {
                   ) : (
                     <p className="text-2xl font-bold">{stats?.pendingCases || 0}</p>
                   )}
-                  <p className="text-sm text-muted-foreground">Casos Pendientes</p>
+                  <p className="text-sm text-muted-foreground">{t.pendingCases}</p>
                 </div>
               </div>
             </CardContent>
@@ -330,7 +798,7 @@ export default function Admin() {
                   ) : (
                     <p className="text-2xl font-bold">{stats?.completedCases || 0}</p>
                   )}
-                  <p className="text-sm text-muted-foreground">Casos Completados</p>
+                  <p className="text-sm text-muted-foreground">{t.completedCases}</p>
                 </div>
               </div>
             </CardContent>
@@ -350,7 +818,7 @@ export default function Admin() {
                       ${(stats?.totalRefunds || 0).toLocaleString()}
                     </p>
                   )}
-                  <p className="text-sm text-muted-foreground">Reembolsos Est.</p>
+                  <p className="text-sm text-muted-foreground">{t.estRefunds}</p>
                 </div>
               </div>
             </CardContent>
@@ -361,27 +829,27 @@ export default function Admin() {
           <TabsList>
             <TabsTrigger value="cases" data-testid="tab-cases">
               <FolderOpen className="h-4 w-4 mr-2" />
-              Casos
+              {t.cases}
             </TabsTrigger>
             <TabsTrigger value="clients" data-testid="tab-clients">
               <Users className="h-4 w-4 mr-2" />
-              Clientes
+              {t.clients}
             </TabsTrigger>
             <TabsTrigger value="appointments" data-testid="tab-appointments">
               <CalendarDays className="h-4 w-4 mr-2" />
-              Citas
+              {t.appointments}
             </TabsTrigger>
             <TabsTrigger value="contacts" data-testid="tab-contacts">
               <Mail className="h-4 w-4 mr-2" />
-              Contactos
+              {t.contacts}
             </TabsTrigger>
             <TabsTrigger value="messages" data-testid="tab-messages">
               <FileText className="h-4 w-4 mr-2" />
-              Mensajes
+              {t.messages}
             </TabsTrigger>
             <TabsTrigger value="analytics" data-testid="tab-analytics">
               <BarChart3 className="h-4 w-4 mr-2" />
-              Análisis
+              {t.analytics}
             </TabsTrigger>
           </TabsList>
 
@@ -389,26 +857,26 @@ export default function Admin() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-4">
                 <div>
-                  <CardTitle>Casos de Impuestos</CardTitle>
-                  <CardDescription>Gestiona todos los casos activos</CardDescription>
+                  <CardTitle>{t.taxCases}</CardTitle>
+                  <CardDescription>{t.manageActiveCases}</CardDescription>
                 </div>
                 <Dialog open={isCreateCaseOpen} onOpenChange={setIsCreateCaseOpen}>
                   <DialogTrigger asChild>
                     <Button className="gap-2" data-testid="button-create-case">
                       <Plus className="h-4 w-4" />
-                      Nuevo Caso
+                      {t.newCase}
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Crear Nuevo Caso</DialogTitle>
+                      <DialogTitle>{t.createNewCase}</DialogTitle>
                       <DialogDescription>
-                        Crea un nuevo caso de impuestos para un cliente
+                        {t.createCaseDesc}
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 pt-4">
                       <div className="space-y-2">
-                        <Label>Cliente</Label>
+                        <Label>{t.client}</Label>
                         <Select
                           value={newCaseData.clientId}
                           onValueChange={(value) =>
@@ -416,7 +884,7 @@ export default function Admin() {
                           }
                         >
                           <SelectTrigger data-testid="select-client">
-                            <SelectValue placeholder="Selecciona un cliente" />
+                            <SelectValue placeholder={t.selectClient} />
                           </SelectTrigger>
                           <SelectContent>
                             {clients?.map((client) => (
@@ -429,7 +897,7 @@ export default function Admin() {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Año Fiscal</Label>
+                          <Label>{t.fiscalYear}</Label>
                           <Input
                             type="number"
                             value={newCaseData.filingYear}
@@ -443,7 +911,7 @@ export default function Admin() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Dependientes</Label>
+                          <Label>{t.dependents}</Label>
                           <Input
                             type="number"
                             value={newCaseData.dependents}
@@ -458,7 +926,7 @@ export default function Admin() {
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>Estado Civil</Label>
+                        <Label>{t.filingStatus}</Label>
                         <Select
                           value={newCaseData.filingStatus}
                           onValueChange={(value) =>
@@ -469,15 +937,15 @@ export default function Admin() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="single">Soltero</SelectItem>
+                            <SelectItem value="single">{t.single}</SelectItem>
                             <SelectItem value="married_filing_jointly">
-                              Casado (Conjunto)
+                              {t.marriedJoint}
                             </SelectItem>
                             <SelectItem value="married_filing_separately">
-                              Casado (Separado)
+                              {t.marriedSeparate}
                             </SelectItem>
                             <SelectItem value="head_of_household">
-                              Jefe de Familia
+                              {t.headHousehold}
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -491,10 +959,10 @@ export default function Admin() {
                         {createCaseMutation.isPending ? (
                           <>
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            Creando...
+                            {t.creating}
                           </>
                         ) : (
-                          "Crear Caso"
+                          t.createCase
                         )}
                       </Button>
                     </div>
@@ -513,12 +981,12 @@ export default function Admin() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Cliente</TableHead>
-                          <TableHead>Año</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead>Monto</TableHead>
-                          <TableHead>Fecha</TableHead>
-                          <TableHead className="text-right">Acciones</TableHead>
+                          <TableHead>{t.client}</TableHead>
+                          <TableHead>{t.year}</TableHead>
+                          <TableHead>{t.status}</TableHead>
+                          <TableHead>{t.amount}</TableHead>
+                          <TableHead>{t.date}</TableHead>
+                          <TableHead className="text-right">{t.actions}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -534,7 +1002,7 @@ export default function Admin() {
                                   </AvatarFallback>
                                 </Avatar>
                                 <span className="font-medium">
-                                  {taxCase.client?.name || "Cliente"}
+                                  {taxCase.client?.name || t.client}
                                 </span>
                               </div>
                             </TableCell>
@@ -555,7 +1023,7 @@ export default function Admin() {
                             </TableCell>
                             <TableCell>
                               {format(new Date(taxCase.createdAt), "d MMM yyyy", {
-                                locale: es,
+                                locale: getDateLocale(language),
                               })}
                             </TableCell>
                             <TableCell className="text-right">
@@ -576,7 +1044,7 @@ export default function Admin() {
                 ) : (
                   <div className="text-center py-8">
                     <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground">No hay casos registrados</p>
+                    <p className="text-muted-foreground">{t.noCases}</p>
                   </div>
                 )}
               </CardContent>
@@ -586,8 +1054,8 @@ export default function Admin() {
           <TabsContent value="clients">
             <Card>
               <CardHeader>
-                <CardTitle>Clientes</CardTitle>
-                <CardDescription>Lista de todos los clientes registrados</CardDescription>
+                <CardTitle>{t.clients}</CardTitle>
+                <CardDescription>{t.clientsList}</CardDescription>
               </CardHeader>
               <CardContent>
                 {clientsLoading ? (
@@ -601,12 +1069,12 @@ export default function Admin() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Nombre</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Teléfono</TableHead>
-                          <TableHead>Casos</TableHead>
-                          <TableHead>Documentos</TableHead>
-                          <TableHead>Registro</TableHead>
+                          <TableHead>{t.name}</TableHead>
+                          <TableHead>{t.email}</TableHead>
+                          <TableHead>{t.phone}</TableHead>
+                          <TableHead>{t.cases}</TableHead>
+                          <TableHead>Docs</TableHead>
+                          <TableHead>{t.registration}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -638,7 +1106,7 @@ export default function Admin() {
                             </TableCell>
                             <TableCell>
                               {format(new Date(client.createdAt), "d MMM yyyy", {
-                                locale: es,
+                                locale: getDateLocale(language),
                               })}
                             </TableCell>
                           </TableRow>
@@ -649,7 +1117,7 @@ export default function Admin() {
                 ) : (
                   <div className="text-center py-8">
                     <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground">No hay clientes registrados</p>
+                    <p className="text-muted-foreground">{t.noClients}</p>
                   </div>
                 )}
               </CardContent>
@@ -659,8 +1127,8 @@ export default function Admin() {
           <TabsContent value="appointments">
             <Card>
               <CardHeader>
-                <CardTitle>Citas</CardTitle>
-                <CardDescription>Gestiona las citas programadas</CardDescription>
+                <CardTitle>{t.appointments}</CardTitle>
+                <CardDescription>{t.appointmentsList}</CardDescription>
               </CardHeader>
               <CardContent>
                 {appointmentsLoading ? (
@@ -674,9 +1142,9 @@ export default function Admin() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Fecha</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead>Notas</TableHead>
+                          <TableHead>{t.date}</TableHead>
+                          <TableHead>{t.status}</TableHead>
+                          <TableHead>{t.notes}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -688,8 +1156,8 @@ export default function Admin() {
                             <TableCell>
                               {format(
                                 new Date(appointment.appointmentDate),
-                                "EEEE, d MMMM yyyy 'a las' h:mm a",
-                                { locale: es }
+                                "EEEE, d MMMM yyyy",
+                                { locale: getDateLocale(language) }
                               )}
                             </TableCell>
                             <TableCell>
@@ -702,11 +1170,7 @@ export default function Admin() {
                                     : "destructive"
                                 }
                               >
-                                {appointment.status === "scheduled"
-                                  ? "Programada"
-                                  : appointment.status === "completed"
-                                  ? "Completada"
-                                  : "Cancelada"}
+                                {appointmentStatusLabels[appointment.status] || appointment.status}
                               </Badge>
                             </TableCell>
                             <TableCell>
@@ -720,7 +1184,7 @@ export default function Admin() {
                 ) : (
                   <div className="text-center py-8">
                     <CalendarDays className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground">No hay citas programadas</p>
+                    <p className="text-muted-foreground">{t.noAppointments}</p>
                   </div>
                 )}
               </CardContent>
@@ -730,8 +1194,8 @@ export default function Admin() {
           <TabsContent value="contacts">
             <Card>
               <CardHeader>
-                <CardTitle>Mensajes de Contacto</CardTitle>
-                <CardDescription>Mensajes recibidos del formulario de contacto</CardDescription>
+                <CardTitle>{t.contactMessages}</CardTitle>
+                <CardDescription>{t.contactMessagesDesc}</CardDescription>
               </CardHeader>
               <CardContent>
                 {contactsLoading ? (
@@ -758,7 +1222,7 @@ export default function Admin() {
                           </div>
                           <span className="text-xs text-muted-foreground">
                             {format(new Date(contact.createdAt), "d MMM yyyy", {
-                              locale: es,
+                              locale: getDateLocale(language),
                             })}
                           </span>
                         </div>
@@ -769,7 +1233,7 @@ export default function Admin() {
                 ) : (
                   <div className="text-center py-8">
                     <Mail className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                    <p className="text-muted-foreground">No hay mensajes de contacto</p>
+                    <p className="text-muted-foreground">{t.noContacts}</p>
                   </div>
                 )}
               </CardContent>
@@ -790,14 +1254,14 @@ export default function Admin() {
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Editar Caso</DialogTitle>
+              <DialogTitle>{t.editCase}</DialogTitle>
               <DialogDescription>
-                Actualiza el estado y notas del caso
+                {t.editCaseDesc}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Estado</Label>
+                <Label>{t.status}</Label>
                 <Select value={editStatus} onValueChange={setEditStatus}>
                   <SelectTrigger data-testid="select-edit-status">
                     <SelectValue />
@@ -812,7 +1276,7 @@ export default function Admin() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Monto Final ($)</Label>
+                <Label>{t.finalAmount}</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -823,11 +1287,11 @@ export default function Admin() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Notas Internas</Label>
+                <Label>{t.internalNotes}</Label>
                 <Textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Notas sobre el caso..."
+                  placeholder={t.notesPlaceholder}
                   data-testid="input-edit-notes"
                 />
               </div>
@@ -849,10 +1313,10 @@ export default function Admin() {
                 {updateCaseMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Guardando...
+                    {t.saving}
                   </>
                 ) : (
-                  "Guardar Cambios"
+                  t.saveChanges
                 )}
               </Button>
             </div>
