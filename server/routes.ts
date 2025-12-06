@@ -18,6 +18,7 @@ import {
   sendCaseStatusUpdate,
   sendAppointmentConfirmation 
 } from "./email";
+import { wsService } from "./websocket";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -123,6 +124,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  wsService.initialize(httpServer);
   await setupAuth(app);
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
@@ -335,6 +337,13 @@ export async function registerRoutes(
         category: docCategory,
       }).catch(console.error);
 
+      wsService.notifyDocumentUpload(
+        req.user!.id,
+        req.user!.name,
+        req.file.originalname,
+        validCaseId || undefined
+      );
+
       res.json(document);
     } catch (error) {
       console.error("Upload error:", error);
@@ -416,6 +425,12 @@ export async function registerRoutes(
         appointmentDate: parsedDate,
         notes: notes || undefined,
       }).catch(console.error);
+
+      wsService.notifyNewAppointment(
+        req.user!.id,
+        parsedDate.toISOString(),
+        notes || "Consulta de impuestos"
+      );
 
       res.json(appointment);
     } catch (error) {
@@ -547,6 +562,13 @@ export async function registerRoutes(
             newStatus: status,
             notes: notes || undefined,
           }).catch(console.error);
+
+          wsService.notifyCaseStatusChange(
+            existingCase.clientId,
+            caseId,
+            status,
+            client.name
+          );
         }
       }
 
@@ -638,6 +660,12 @@ export async function registerRoutes(
         details: `Message sent to ${recipient.name}`,
       });
 
+      wsService.notifyNewMessage(
+        req.user!.id,
+        parseInt(recipientId),
+        message.substring(0, 100) + (message.length > 100 ? "..." : "")
+      );
+
       res.json(newMessage);
     } catch (error) {
       console.error("Send message error:", error);
@@ -677,6 +705,20 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get analytics error:", error);
       res.status(500).json({ message: "Failed to get analytics" });
+    }
+  });
+
+  app.get("/api/auth/ws-token", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const wsToken = jwt.sign(
+        { id: req.user!.id, role: req.user!.role },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+      res.json({ token: wsToken });
+    } catch (error) {
+      console.error("WS token error:", error);
+      res.status(500).json({ message: "Failed to generate WS token" });
     }
   });
 
