@@ -1,14 +1,109 @@
+/**
+ * @fileoverview Hero Section Component
+ * Sección principal de la landing page con soporte multi-idioma
+ */
+
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { CalendarCheck, UserCircle, ArrowRight } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
 
 export function HeroSection() {
+  const { t, language } = useI18n();
+  
   const handleScheduleClick = () => {
     const contactSection = document.getElementById("contact");
     if (contactSection) {
       contactSection.scrollIntoView({ behavior: "smooth" });
     }
   };
+
+  const stats = {
+    en: [
+      { value: "10+", label: "Years of Experience" },
+      { value: "5000+", label: "Satisfied Clients" },
+      { value: "98%", label: "Success Rate" },
+      { value: "24h", label: "Fast Response" },
+    ],
+    es: [
+      { value: "10+", label: "Años de Experiencia" },
+      { value: "5000+", label: "Clientes Satisfechos" },
+      { value: "98%", label: "Tasa de Éxito" },
+      { value: "24h", label: "Respuesta Rápida" },
+    ],
+    fr: [
+      { value: "10+", label: "Années d'Expérience" },
+      { value: "5000+", label: "Clients Satisfaits" },
+      { value: "98%", label: "Taux de Réussite" },
+      { value: "24h", label: "Réponse Rapide" },
+    ],
+    pt: [
+      { value: "10+", label: "Anos de Experiência" },
+      { value: "5000+", label: "Clientes Satisfeitos" },
+      { value: "98%", label: "Taxa de Sucesso" },
+      { value: "24h", label: "Resposta Rápida" },
+    ],
+    zh: [
+      { value: "10+", label: "年经验" },
+      { value: "5000+", label: "满意客户" },
+      { value: "98%", label: "成功率" },
+      { value: "24h", label: "快速响应" },
+    ],
+    ht: [
+      { value: "10+", label: "Ane Eksperyans" },
+      { value: "5000+", label: "Kliyan Satisfè" },
+      { value: "98%", label: "To Siksè" },
+      { value: "24h", label: "Repons Rapid" },
+    ],
+  };
+
+  const seasonBanner = {
+    en: "Tax Season 2025 - We're Ready",
+    es: "Temporada de Impuestos 2025 - Estamos Listos",
+    fr: "Saison Fiscale 2025 - Nous Sommes Prêts",
+    pt: "Temporada de Impostos 2025 - Estamos Prontos",
+    zh: "2025税季 - 我们已准备就绪",
+    ht: "Sezon Taks 2025 - Nou Pare",
+  };
+
+  const heroHeadline = {
+    en: { part1: "Maximize your refund", highlight: "with tax experts", part2: "" },
+    es: { part1: "Maximiza tu reembolso", highlight: "con expertos", part2: "en impuestos" },
+    fr: { part1: "Maximisez votre remboursement", highlight: "avec des experts", part2: "fiscaux" },
+    pt: { part1: "Maximize sua restituição", highlight: "com especialistas", part2: "em impostos" },
+    zh: { part1: "最大化您的退税", highlight: "与税务专家", part2: "一起" },
+    ht: { part1: "Maksimize ranbousman ou", highlight: "ak ekspè", part2: "nan taks" },
+  };
+
+  const heroDescription = {
+    en: "Certified preparers with over 10 years of experience. Personalized service in English and Spanish for employees, business owners, and self-employed individuals.",
+    es: "Preparadores certificados con más de 10 años de experiencia. Servicio personalizado en inglés y español para empleados, dueños de negocios y trabajadores independientes.",
+    fr: "Préparateurs certifiés avec plus de 10 ans d'expérience. Service personnalisé en anglais et espagnol pour employés, propriétaires d'entreprise et travailleurs indépendants.",
+    pt: "Preparadores certificados com mais de 10 anos de experiência. Serviço personalizado em inglês e espanhol para funcionários, donos de negócios e autônomos.",
+    zh: "拥有超过10年经验的认证准备者。为员工、企业主和自雇人士提供英语和西班牙语的个性化服务。",
+    ht: "Preparatè sètifye ak plis pase 10 ane eksperyans. Sèvis pèsonalize an Angle ak Panyòl pou anplwaye, pwopriyetè biznis ak travayè endepandan.",
+  };
+
+  const scheduleButton = {
+    en: "Schedule Appointment",
+    es: "Agendar Cita",
+    fr: "Prendre Rendez-vous",
+    pt: "Agendar Consulta",
+    zh: "预约咨询",
+    ht: "Pran Randevou",
+  };
+
+  const portalButton = {
+    en: "Client Portal",
+    es: "Portal de Clientes",
+    fr: "Portail Client",
+    pt: "Portal do Cliente",
+    zh: "客户门户",
+    ht: "Pòtay Kliyan",
+  };
+
+  const currentStats = stats[language] || stats.en;
+  const headline = heroHeadline[language] || heroHeadline.en;
 
   return (
     <section 
@@ -28,19 +123,17 @@ export function HeroSection() {
         <div className="max-w-4xl mx-auto space-y-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-sm font-medium">
             <span className="flex h-2 w-2 rounded-full bg-[#2ECC71] animate-pulse" />
-            Temporada de Impuestos 2025 - Estamos Listos
+            {seasonBanner[language] || seasonBanner.en}
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white leading-tight tracking-tight">
-            Maximiza tu reembolso{" "}
-            <span className="text-[#2ECC71]">con expertos</span>{" "}
-            en impuestos
+            {headline.part1}{" "}
+            <span className="text-[#2ECC71]">{headline.highlight}</span>{" "}
+            {headline.part2}
           </h1>
 
           <p className="text-lg sm:text-xl text-white/80 max-w-2xl mx-auto leading-relaxed">
-            Preparadores certificados con más de 10 años de experiencia. 
-            Servicio personalizado en inglés y español para empleados, 
-            dueños de negocios y trabajadores independientes.
+            {heroDescription[language] || heroDescription.en}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
@@ -51,7 +144,7 @@ export function HeroSection() {
               data-testid="button-schedule-cta"
             >
               <CalendarCheck className="h-5 w-5" />
-              Agendar Cita
+              {scheduleButton[language] || scheduleButton.en}
               <ArrowRight className="h-4 w-4" />
             </Button>
 
@@ -63,18 +156,13 @@ export function HeroSection() {
                 data-testid="button-portal-cta"
               >
                 <UserCircle className="h-5 w-5" />
-                Portal de Clientes
+                {portalButton[language] || portalButton.en}
               </Button>
             </Link>
           </div>
 
           <div className="pt-8 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">
-            {[
-              { value: "10+", label: "Años de Experiencia" },
-              { value: "5000+", label: "Clientes Satisfechos" },
-              { value: "98%", label: "Tasa de Éxito" },
-              { value: "24h", label: "Respuesta Rápida" },
-            ].map((stat) => (
+            {currentStats.map((stat) => (
               <div key={stat.label} className="text-center">
                 <div className="text-3xl sm:text-4xl font-bold text-[#2ECC71]">
                   {stat.value}
