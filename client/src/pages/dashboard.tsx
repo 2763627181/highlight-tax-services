@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { MessagingPanel } from "@/components/messaging";
 import type { TaxCase, Document, Appointment } from "@shared/schema";
 import {
   FileText,
@@ -634,6 +635,10 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+
+            <div className="h-[400px]" data-testid="card-messaging">
+              <MessagingPanel />
+            </div>
 
             <Card data-testid="card-contact">
               <CardHeader>

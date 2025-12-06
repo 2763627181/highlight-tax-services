@@ -38,6 +38,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { MessagingPanel } from "@/components/messaging";
+import { AnalyticsDashboard } from "@/components/analytics-dashboard";
 import type { User, TaxCase, Document, Appointment, ContactSubmission } from "@shared/schema";
 import {
   FileText,
@@ -372,6 +374,14 @@ export default function Admin() {
             <TabsTrigger value="contacts" data-testid="tab-contacts">
               <Mail className="h-4 w-4 mr-2" />
               Contactos
+            </TabsTrigger>
+            <TabsTrigger value="messages" data-testid="tab-messages">
+              <FileText className="h-4 w-4 mr-2" />
+              Mensajes
+            </TabsTrigger>
+            <TabsTrigger value="analytics" data-testid="tab-analytics">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Análisis
             </TabsTrigger>
           </TabsList>
 
@@ -764,6 +774,16 @@ export default function Admin() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="messages">
+            <div className="h-[600px]">
+              <MessagingPanel />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <AnalyticsDashboard />
           </TabsContent>
         </Tabs>
 

@@ -100,8 +100,9 @@ export const appointments = pgTable("appointments", {
 
 export const messages = pgTable("messages", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  caseId: integer("case_id").notNull().references(() => taxCases.id, { onDelete: "cascade" }),
+  caseId: integer("case_id").references(() => taxCases.id, { onDelete: "cascade" }),
   senderId: integer("sender_id").notNull().references(() => users.id),
+  recipientId: integer("recipient_id").notNull().references(() => users.id),
   message: text("message").notNull(),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -112,6 +113,7 @@ export const contactSubmissions = pgTable("contact_submissions", {
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 50 }),
+  service: varchar("service", { length: 100 }),
   message: text("message").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

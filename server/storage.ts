@@ -53,11 +53,16 @@ export interface IStorage {
   
   getAppointmentsByClient(clientId: number): Promise<Appointment[]>;
   getAllAppointments(): Promise<Appointment[]>;
+  checkAppointmentConflict(appointmentDate: Date): Promise<boolean>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointment(id: number, data: Partial<InsertAppointment>): Promise<Appointment | undefined>;
   
   getMessagesByCase(caseId: number): Promise<Message[]>;
+  getConversation(userId1: number, userId2: number): Promise<Message[]>;
+  getConversationsForUser(userId: number): Promise<{ partnerId: number; partnerName: string; partnerRole: string; lastMessage: Message; unreadCount: number }[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+  markMessagesAsRead(recipientId: number, senderId: number): Promise<void>;
+  getUnreadCount(userId: number): Promise<number>;
   
   createContactSubmission(contact: InsertContactSubmission): Promise<ContactSubmission>;
   getAllContactSubmissions(): Promise<ContactSubmission[]>;
@@ -69,6 +74,13 @@ export interface IStorage {
     pendingCases: number;
     completedCases: number;
     totalRefunds: number;
+  }>;
+
+  getAnalyticsData(): Promise<{
+    casesByMonth: { month: string; count: number; amount: number }[];
+    casesByStatus: { status: string; count: number }[];
+    casesByYear: { year: number; count: number; amount: number }[];
+    recentActivity: { date: string; action: string; details: string }[];
   }>;
 }
 
@@ -210,6 +222,24 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(appointments).orderBy(desc(appointments.appointmentDate));
   }
 
+  async checkAppointmentConflict(appointmentDate: Date): Promise<boolean> {
+    const windowStart = new Date(appointmentDate.getTime() - 30 * 60 * 1000);
+    const windowEnd = new Date(appointmentDate.getTime() + 30 * 60 * 1000);
+    
+    const conflicting = await db
+      .select({ count: count() })
+      .from(appointments)
+      .where(
+        and(
+          sql`${appointments.appointmentDate} >= ${windowStart}`,
+          sql`${appointments.appointmentDate} <= ${windowEnd}`,
+          sql`${appointments.status} != 'cancelled'`
+        )
+      );
+    
+    return (conflicting[0]?.count || 0) > 0;
+  }
+
   async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
     const [newAppointment] = await db
       .insert(appointments)
@@ -231,12 +261,77 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(messages).where(eq(messages.caseId, caseId)).orderBy(messages.createdAt);
   }
 
+  async getConversation(userId1: number, userId2: number): Promise<Message[]> {
+    return db.select().from(messages).where(
+      sql`(${messages.senderId} = ${userId1} AND ${messages.recipientId} = ${userId2}) OR (${messages.senderId} = ${userId2} AND ${messages.recipientId} = ${userId1})`
+    ).orderBy(messages.createdAt);
+  }
+
+  async getConversationsForUser(userId: number): Promise<{ partnerId: number; partnerName: string; partnerRole: string; lastMessage: Message; unreadCount: number }[]> {
+    const allMessages = await db.select().from(messages).where(
+      sql`${messages.senderId} = ${userId} OR ${messages.recipientId} = ${userId}`
+    ).orderBy(desc(messages.createdAt));
+
+    const conversationMap = new Map<number, { partnerId: number; messages: Message[] }>();
+    
+    for (const msg of allMessages) {
+      const partnerId = msg.senderId === userId ? msg.recipientId : msg.senderId;
+      if (!conversationMap.has(partnerId)) {
+        conversationMap.set(partnerId, { partnerId, messages: [] });
+      }
+      conversationMap.get(partnerId)!.messages.push(msg);
+    }
+
+    const conversations = [];
+    for (const [partnerId, data] of conversationMap) {
+      const partner = await this.getUser(partnerId);
+      if (partner) {
+        const unreadCount = data.messages.filter(m => m.recipientId === userId && !m.isRead).length;
+        conversations.push({
+          partnerId,
+          partnerName: partner.name,
+          partnerRole: partner.role,
+          lastMessage: data.messages[0],
+          unreadCount,
+        });
+      }
+    }
+
+    return conversations.sort((a, b) => 
+      new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime()
+    );
+  }
+
   async createMessage(message: InsertMessage): Promise<Message> {
     const [newMessage] = await db
       .insert(messages)
       .values(message)
       .returning();
     return newMessage;
+  }
+
+  async markMessagesAsRead(recipientId: number, senderId: number): Promise<void> {
+    await db.update(messages)
+      .set({ isRead: true })
+      .where(
+        and(
+          eq(messages.recipientId, recipientId),
+          eq(messages.senderId, senderId),
+          eq(messages.isRead, false)
+        )
+      );
+  }
+
+  async getUnreadCount(userId: number): Promise<number> {
+    const [result] = await db.select({ count: count() })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.recipientId, userId),
+          eq(messages.isRead, false)
+        )
+      );
+    return result?.count || 0;
   }
 
   async createContactSubmission(contact: InsertContactSubmission): Promise<ContactSubmission> {
@@ -291,6 +386,80 @@ export class DatabaseStorage implements IStorage {
       pendingCases: pendingCount?.count || 0,
       completedCases: completedCases[0]?.count || 0,
       totalRefunds: parseFloat(refundsSum?.total || "0"),
+    };
+  }
+
+  async getAnalyticsData(): Promise<{
+    casesByMonth: { month: string; count: number; amount: number }[];
+    casesByStatus: { status: string; count: number }[];
+    casesByYear: { year: number; count: number; amount: number }[];
+    recentActivity: { date: string; action: string; details: string }[];
+  }> {
+    const allCases = await db.select().from(taxCases).orderBy(desc(taxCases.createdAt));
+    
+    const casesByMonth = new Map<string, { count: number; amount: number }>();
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const key = `${months[date.getMonth()]} ${date.getFullYear()}`;
+      casesByMonth.set(key, { count: 0, amount: 0 });
+    }
+    
+    for (const c of allCases) {
+      const date = new Date(c.createdAt);
+      const key = `${months[date.getMonth()]} ${date.getFullYear()}`;
+      if (casesByMonth.has(key)) {
+        const current = casesByMonth.get(key)!;
+        current.count++;
+        current.amount += parseFloat(c.finalAmount || "0");
+      }
+    }
+
+    const casesByMonthArr = Array.from(casesByMonth.entries())
+      .map(([month, data]) => ({ month, ...data }))
+      .reverse();
+
+    const statusCounts = await db.select({ 
+      status: taxCases.status, 
+      count: count() 
+    })
+      .from(taxCases)
+      .groupBy(taxCases.status);
+
+    const casesByStatus = statusCounts.map(s => ({
+      status: s.status,
+      count: Number(s.count)
+    }));
+
+    const casesByYearMap = new Map<number, { count: number; amount: number }>();
+    for (const c of allCases) {
+      const year = c.filingYear;
+      if (!casesByYearMap.has(year)) {
+        casesByYearMap.set(year, { count: 0, amount: 0 });
+      }
+      const current = casesByYearMap.get(year)!;
+      current.count++;
+      current.amount += parseFloat(c.finalAmount || "0");
+    }
+
+    const casesByYear = Array.from(casesByYearMap.entries())
+      .map(([year, data]) => ({ year, ...data }))
+      .sort((a, b) => b.year - a.year);
+
+    const recentLogs = await db.select().from(activityLogs).orderBy(desc(activityLogs.createdAt)).limit(10);
+    const recentActivity = recentLogs.map(log => ({
+      date: log.createdAt.toISOString(),
+      action: log.action,
+      details: log.details || ''
+    }));
+
+    return {
+      casesByMonth: casesByMonthArr,
+      casesByStatus,
+      casesByYear,
+      recentActivity,
     };
   }
 }

@@ -1,7 +1,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertContactSubmissionSchema, insertAppointmentSchema, insertTaxCaseSchema } from "@shared/schema";
+import { insertContactSubmissionSchema, insertAppointmentSchema, insertTaxCaseSchema, users } from "@shared/schema";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import multer from "multer";
@@ -9,6 +11,13 @@ import path from "path";
 import fs from "fs";
 import { z } from "zod";
 import { setupAuth } from "./replitAuth";
+import { 
+  sendContactFormNotification, 
+  sendWelcomeEmail, 
+  sendDocumentUploadNotification, 
+  sendCaseStatusUpdate,
+  sendAppointmentConfirmation 
+} from "./email";
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -149,6 +158,8 @@ export async function registerRoutes(
         details: `New user registered: ${email}`,
       });
 
+      sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
+
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         JWT_SECRET,
@@ -240,6 +251,15 @@ export async function registerRoutes(
       }
 
       const contact = await storage.createContactSubmission(result.data);
+      
+      sendContactFormNotification({
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone || undefined,
+        message: contact.message,
+        service: contact.service || undefined,
+      }).catch(console.error);
+
       res.json({ success: true, contact });
     } catch (error) {
       console.error("Contact submission error:", error);
@@ -308,6 +328,13 @@ export async function registerRoutes(
         details: `Document uploaded: ${req.file.originalname} (${docCategory})`,
       });
 
+      sendDocumentUploadNotification({
+        clientName: req.user!.name,
+        clientEmail: req.user!.email,
+        fileName: req.file.originalname,
+        category: docCategory,
+      }).catch(console.error);
+
       res.json(document);
     } catch (error) {
       console.error("Upload error:", error);
@@ -360,9 +387,19 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Appointment date is required" });
       }
 
+      const parsedDate = new Date(appointmentDate);
+      
+      const hasConflict = await storage.checkAppointmentConflict(parsedDate);
+      if (hasConflict) {
+        return res.status(409).json({ 
+          message: "This time slot is not available. Please choose a different time.",
+          conflict: true
+        });
+      }
+
       const appointment = await storage.createAppointment({
         clientId: req.user!.id,
-        appointmentDate: new Date(appointmentDate),
+        appointmentDate: parsedDate,
         notes: notes || null,
         status: "scheduled",
       });
@@ -372,6 +409,13 @@ export async function registerRoutes(
         action: "appointment_scheduled",
         details: `Appointment scheduled for ${appointmentDate}`,
       });
+
+      sendAppointmentConfirmation({
+        clientName: req.user!.name,
+        clientEmail: req.user!.email,
+        appointmentDate: parsedDate,
+        notes: notes || undefined,
+      }).catch(console.error);
 
       res.json(appointment);
     } catch (error) {
@@ -471,6 +515,11 @@ export async function registerRoutes(
       const caseId = parseInt(req.params.id);
       const { status, notes, finalAmount } = req.body;
 
+      const existingCase = await storage.getTaxCase(caseId);
+      if (!existingCase) {
+        return res.status(404).json({ message: "Case not found" });
+      }
+
       const updatedCase = await storage.updateTaxCase(caseId, {
         status,
         notes,
@@ -486,6 +535,20 @@ export async function registerRoutes(
         action: "case_updated",
         details: `Case ${caseId} updated: status=${status}`,
       });
+
+      if (status && status !== existingCase.status) {
+        const client = await storage.getUser(existingCase.clientId);
+        if (client) {
+          sendCaseStatusUpdate({
+            clientName: client.name,
+            clientEmail: client.email,
+            caseId: caseId,
+            filingYear: existingCase.filingYear,
+            newStatus: status,
+            notes: notes || undefined,
+          }).catch(console.error);
+        }
+      }
 
       res.json(updatedCase);
     } catch (error) {
@@ -511,6 +574,109 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Get contacts error:", error);
       res.status(500).json({ message: "Failed to get contacts" });
+    }
+  });
+
+  app.get("/api/messages/conversations", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const conversations = await storage.getConversationsForUser(req.user!.id);
+      res.json(conversations);
+    } catch (error) {
+      console.error("Get conversations error:", error);
+      res.status(500).json({ message: "Failed to get conversations" });
+    }
+  });
+
+  app.get("/api/messages/unread-count", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const count = await storage.getUnreadCount(req.user!.id);
+      res.json({ count });
+    } catch (error) {
+      console.error("Get unread count error:", error);
+      res.status(500).json({ message: "Failed to get unread count" });
+    }
+  });
+
+  app.get("/api/messages/:partnerId", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const partnerId = parseInt(req.params.partnerId);
+      const messages = await storage.getConversation(req.user!.id, partnerId);
+      
+      await storage.markMessagesAsRead(req.user!.id, partnerId);
+      
+      res.json(messages);
+    } catch (error) {
+      console.error("Get messages error:", error);
+      res.status(500).json({ message: "Failed to get messages" });
+    }
+  });
+
+  app.post("/api/messages", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const { recipientId, message, caseId } = req.body;
+
+      if (!recipientId || !message) {
+        return res.status(400).json({ message: "Recipient and message are required" });
+      }
+
+      const recipient = await storage.getUser(parseInt(recipientId));
+      if (!recipient) {
+        return res.status(404).json({ message: "Recipient not found" });
+      }
+
+      const newMessage = await storage.createMessage({
+        senderId: req.user!.id,
+        recipientId: parseInt(recipientId),
+        message,
+        caseId: caseId ? parseInt(caseId) : null,
+        isRead: false,
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "message_sent",
+        details: `Message sent to ${recipient.name}`,
+      });
+
+      res.json(newMessage);
+    } catch (error) {
+      console.error("Send message error:", error);
+      res.status(500).json({ message: "Failed to send message" });
+    }
+  });
+
+  app.get("/api/admin/preparers", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const allUsers = await storage.getAllClients();
+      const preparers = await db.select().from(users).where(
+        sql`${users.role} IN ('admin', 'preparer')`
+      );
+      res.json(preparers.map(p => ({ id: p.id, name: p.name, role: p.role })));
+    } catch (error) {
+      console.error("Get preparers error:", error);
+      res.status(500).json({ message: "Failed to get preparers" });
+    }
+  });
+
+  app.get("/api/preparers", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const preparers = await db.select().from(users).where(
+        sql`${users.role} IN ('admin', 'preparer')`
+      );
+      res.json(preparers.map(p => ({ id: p.id, name: p.name, role: p.role })));
+    } catch (error) {
+      console.error("Get preparers error:", error);
+      res.status(500).json({ message: "Failed to get preparers" });
+    }
+  });
+
+  app.get("/api/admin/analytics", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const analytics = await storage.getAnalyticsData();
+      res.json(analytics);
+    } catch (error) {
+      console.error("Get analytics error:", error);
+      res.status(500).json({ message: "Failed to get analytics" });
     }
   });
 
