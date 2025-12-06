@@ -148,10 +148,27 @@ shared/
    - Statistics overview
    - Contact submissions management
 
-4. **Security**
+4. **Security** (See SECURITY.md for details)
    - Password strength validation (8+ chars, uppercase, lowercase, number)
-   - JWT authentication with secure cookies (SameSite: strict)
+   - JWT authentication with secure cookies (httpOnly, secure, SameSite: strict)
    - Session secret from environment variable
+   - Rate limiting per endpoint:
+     - Auth endpoints: 5 requests/15 min
+     - Upload: 10 requests/15 min
+     - Contact form: 3 requests/hour
+     - Messages: 30 requests/15 min
+   - File upload security:
+     - MIME type validation
+     - Extension whitelist (pdf, jpg, jpeg, png, gif, doc, docx)
+     - Size limit: 10MB
+     - Filename sanitization
+   - WebSocket security:
+     - JWT authentication required
+     - Connection limit: 5 per user
+     - Message size limit: 1KB
+     - Heartbeat: 30 seconds
+   - Security headers via Helmet middleware
+   - HTTP Parameter Pollution (HPP) protection
 
 5. **Dark Mode**
    - Full dark mode support
