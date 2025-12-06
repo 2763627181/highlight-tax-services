@@ -203,6 +203,7 @@ The project includes comprehensive documentation:
 - **CODE_ARCHITECTURE.md** - System architecture, data flows, and design patterns
 - **SECURITY.md** - Security implementation guide and best practices
 - **design_guidelines.md** - UI/UX design guidelines and component usage
+- **DEPLOYMENT.md** - Guide for deploying to Vercel with Supabase database
 
 ## Running the Application
 
