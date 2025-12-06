@@ -1,7 +1,34 @@
+/**
+ * @fileoverview Rutas API de Highlight Tax Services
+ * 
+ * Este archivo define todos los endpoints de la API REST del sistema.
+ * Incluye autenticación, gestión de casos tributarios, documentos,
+ * citas, mensajería, y panel de administración.
+ * 
+ * @module server/routes
+ * @version 1.0.0
+ * 
+ * ## Categorías de Endpoints
+ * - /api/auth/* - Autenticación y autorización
+ * - /api/cases - Gestión de casos tributarios (cliente)
+ * - /api/documents - Gestión de documentos (cliente)
+ * - /api/appointments - Gestión de citas (cliente)
+ * - /api/messages - Sistema de mensajería
+ * - /api/admin/* - Panel de administración
+ * - /api/contact - Formulario de contacto público
+ * 
+ * ## Seguridad Implementada
+ * - JWT para autenticación
+ * - Rate limiting por endpoint
+ * - Validación de entrada con Zod
+ * - Sanitización de archivos
+ * - Control de acceso basado en roles
+ */
+
 import type { Express, Request, Response, NextFunction } from "express";
-import { createServer, type Server } from "http";
+import { type Server } from "http";
 import { storage } from "./storage";
-import { insertContactSubmissionSchema, insertAppointmentSchema, insertTaxCaseSchema, users } from "@shared/schema";
+import { insertContactSubmissionSchema, users } from "@shared/schema";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import bcrypt from "bcrypt";
@@ -10,6 +37,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 import { setupAuth } from "./replitAuth";
 import { 
   sendContactFormNotification, 
@@ -20,68 +48,299 @@ import {
 } from "./email";
 import { wsService } from "./websocket";
 
+// =============================================================================
+// CONFIGURACIÓN DE SEGURIDAD
+// =============================================================================
+
+/**
+ * Clave secreta para firmar tokens JWT
+ * Debe estar definida en las variables de entorno
+ * Se usa para autenticar usuarios y conexiones WebSocket
+ * 
+ * @security Esta clave nunca debe exponerse en logs o respuestas
+ */
+const JWT_SECRET: string = (() => {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.trim().length === 0) {
+    throw new Error("SESSION_SECRET debe estar configurada como string no vacío en las variables de entorno");
+  }
+  if (secret.length < 32) {
+    console.warn("[seguridad] SESSION_SECRET debe tener al menos 32 caracteres para mayor seguridad");
+  }
+  return secret;
+})();
+
+/**
+ * Número de rondas de sal para bcrypt
+ * Mayor número = más seguro pero más lento
+ * 12 es el balance recomendado para producción
+ * 
+ * @security Aumentar si se detectan ataques de fuerza bruta
+ */
+const BCRYPT_ROUNDS = 12;
+
+/**
+ * Duración del token JWT en días
+ * Los tokens expiran automáticamente después de este período
+ */
+const TOKEN_EXPIRY_DAYS = 7;
+
+// =============================================================================
+// ESQUEMAS DE VALIDACIÓN
+// =============================================================================
+
+/**
+ * Esquema de validación para registro de usuarios
+ * 
+ * Requisitos de contraseña:
+ * - Mínimo 8 caracteres
+ * - Al menos una mayúscula
+ * - Al menos una minúscula
+ * - Al menos un número
+ * 
+ * @example
+ * { email: "user@example.com", password: "SecurePass123", name: "Juan" }
+ */
 const registerSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string()
+    .email("Dirección de email inválida")
+    .max(255, "Email demasiado largo")
+    .transform(val => val.toLowerCase().trim()),
   password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[0-9]/, "Password must contain at least one number"),
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  phone: z.string().optional(),
+    .min(8, "La contraseña debe tener al menos 8 caracteres")
+    .max(128, "La contraseña es demasiado larga")
+    .regex(/[A-Z]/, "La contraseña debe contener al menos una letra mayúscula")
+    .regex(/[a-z]/, "La contraseña debe contener al menos una letra minúscula")
+    .regex(/[0-9]/, "La contraseña debe contener al menos un número"),
+  name: z.string()
+    .min(2, "El nombre debe tener al menos 2 caracteres")
+    .max(100, "El nombre es demasiado largo")
+    .transform(val => val.trim()),
+  phone: z.string()
+    .max(20, "Número de teléfono demasiado largo")
+    .optional(),
 });
 
+/**
+ * Esquema de validación para inicio de sesión
+ * 
+ * @example
+ * { email: "user@example.com", password: "SecurePass123" }
+ */
 const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(1, "Password is required"),
+  email: z.string()
+    .email("Dirección de email inválida")
+    .transform(val => val.toLowerCase().trim()),
+  password: z.string()
+    .min(1, "La contraseña es requerida"),
 });
 
-const appointmentSchema = z.object({
-  appointmentDate: z.string().datetime({ message: "Invalid date format" }),
-  notes: z.string().optional(),
+/**
+ * Esquema de validación para mensajes
+ * Limita el tamaño del mensaje para prevenir abuso
+ */
+const messageSchema = z.object({
+  recipientId: z.number().int().positive("ID de destinatario inválido"),
+  message: z.string()
+    .min(1, "El mensaje no puede estar vacío")
+    .max(5000, "El mensaje es demasiado largo"),
+  caseId: z.number().int().positive().optional(),
 });
 
-const JWT_SECRET = process.env.SESSION_SECRET;
+/**
+ * Esquema de validación para creación de casos
+ */
+const caseSchema = z.object({
+  clientId: z.number().int().positive("ID de cliente inválido"),
+  filingYear: z.string().regex(/^\d{4}$/, "Año fiscal inválido"),
+  filingStatus: z.string().optional(),
+  dependents: z.number().int().min(0).max(20).optional(),
+});
 
-if (!JWT_SECRET) {
-  throw new Error("SESSION_SECRET must be set in environment variables");
-}
+/**
+ * Esquema de validación para actualización de casos
+ */
+const caseUpdateSchema = z.object({
+  status: z.enum(["pending", "in_progress", "review", "completed", "filed"]).optional(),
+  notes: z.string().max(2000).optional(),
+  finalAmount: z.number().optional(),
+});
 
+// =============================================================================
+// RATE LIMITERS POR ENDPOINT
+// =============================================================================
+
+/**
+ * Rate limiter para endpoints de autenticación
+ * 
+ * Configuración estricta para prevenir:
+ * - Ataques de fuerza bruta
+ * - Enumeración de usuarios
+ * - Abuso de registro
+ * 
+ * 5 intentos cada 15 minutos por IP
+ */
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 5, // 5 intentos
+  message: { 
+    message: "Demasiados intentos de autenticación. Intente de nuevo en 15 minutos.",
+    retryAfter: 15 
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+/**
+ * Rate limiter para carga de archivos
+ * 
+ * 10 archivos cada 15 minutos por IP
+ * Previene abuso de almacenamiento
+ */
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { 
+    message: "Límite de carga de archivos alcanzado. Intente más tarde." 
+  },
+});
+
+/**
+ * Rate limiter para formulario de contacto
+ * 
+ * 3 envíos cada hora por IP
+ * Previene spam
+ */
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hora
+  max: 3,
+  message: { 
+    message: "Ha enviado demasiados mensajes. Intente más tarde." 
+  },
+});
+
+/**
+ * Rate limiter para mensajería
+ * 
+ * 30 mensajes cada 15 minutos por IP
+ * Previene spam en el sistema de mensajes
+ */
+const messageLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { 
+    message: "Límite de mensajes alcanzado. Espere un momento." 
+  },
+});
+
+// =============================================================================
+// CONFIGURACIÓN DE SUBIDA DE ARCHIVOS
+// =============================================================================
+
+/**
+ * Directorio para almacenar archivos subidos
+ * Ubicado fuera de la raíz web por seguridad
+ */
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+/**
+ * Tipos MIME permitidos para documentos tributarios
+ * 
+ * Incluye:
+ * - PDF: Documentos formales
+ * - JPEG/PNG: Fotos de documentos
+ * - Word: Documentos editables
+ * 
+ * @security Solo estos tipos pueden subirse al sistema
+ */
+const ALLOWED_MIME_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/jpg",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+/**
+ * Extensiones de archivo permitidas
+ * Validación adicional además del tipo MIME
+ */
+const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx'];
+
+/**
+ * Tamaño máximo de archivo: 10MB
+ * Previene abuso de almacenamiento
+ */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+/**
+ * Configuración de almacenamiento de Multer
+ * 
+ * Genera nombres únicos para archivos:
+ * - Timestamp para unicidad
+ * - Random suffix para evitar colisiones
+ * - Mantiene extensión original
+ */
 const multerStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (_req, _file, cb) => {
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
+    // Sanitizar nombre de archivo
+    const sanitizedName = file.originalname
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+      .substring(0, 100);
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + "-" + file.originalname);
+    cb(null, uniqueSuffix + "-" + sanitizedName);
   },
 });
 
+/**
+ * Middleware de Multer configurado
+ * 
+ * Validaciones:
+ * - Tamaño máximo: 10MB
+ * - Solo tipos MIME permitidos
+ * - Solo extensiones permitidas
+ */
 const upload = multer({
   storage: multerStorage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      "application/pdf",
-      "image/jpeg",
-      "image/png",
-      "image/jpg",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error("Invalid file type"));
+  limits: { 
+    fileSize: MAX_FILE_SIZE,
+    files: 1 // Solo un archivo por petición
+  },
+  fileFilter: (_req, file, cb) => {
+    // Validar tipo MIME
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(new Error("Tipo de archivo no permitido. Use PDF, JPG, PNG, DOC o DOCX."));
+      return;
     }
+    
+    // Validar extensión
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      cb(new Error("Extensión de archivo no permitida."));
+      return;
+    }
+    
+    cb(null, true);
   },
 });
 
+// =============================================================================
+// TIPOS DE TYPESCRIPT
+// =============================================================================
+
+/**
+ * Extensión de Request para incluir usuario autenticado
+ * 
+ * Después de pasar por authenticateToken, el request
+ * tendrá información del usuario decodificada del JWT
+ */
 interface AuthRequest extends Request {
   user?: {
     id: number;
@@ -91,14 +350,39 @@ interface AuthRequest extends Request {
   };
 }
 
-function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
+// =============================================================================
+// MIDDLEWARE DE AUTENTICACIÓN
+// =============================================================================
+
+/**
+ * Middleware de autenticación JWT
+ * 
+ * Verifica el token JWT de la cookie o header Authorization
+ * Si es válido, añade la información del usuario al request
+ * 
+ * @param req - Request de Express extendido con user
+ * @param res - Response de Express
+ * @param next - Función para continuar al siguiente middleware
+ * 
+ * @throws 401 - Si no hay token presente
+ * @throws 403 - Si el token es inválido o expirado
+ * 
+ * @example
+ * app.get('/api/protected', authenticateToken, (req, res) => {
+ *   res.json({ user: req.user });
+ * });
+ */
+function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
+  // Buscar token en cookie o header Authorization
   const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({ message: "Authentication required" });
+    res.status(401).json({ message: "Autenticación requerida" });
+    return;
   }
 
   try {
+    // Verificar y decodificar el token
     const decoded = jwt.verify(token, JWT_SECRET) as {
       id: number;
       email: string;
@@ -108,44 +392,162 @@ function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) 
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(403).json({ message: "Invalid token" });
+    // Token inválido o expirado
+    res.status(403).json({ message: "Token inválido o expirado" });
   }
 }
 
-function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+/**
+ * Middleware de autorización para administradores
+ * 
+ * Requiere que el usuario tenga rol 'admin' o 'preparer'
+ * Debe usarse después de authenticateToken
+ * 
+ * @param req - Request con usuario autenticado
+ * @param res - Response de Express
+ * @param next - Función para continuar
+ * 
+ * @throws 403 - Si el usuario no tiene permisos de admin
+ * 
+ * @example
+ * app.get('/api/admin/users', authenticateToken, requireAdmin, handler);
+ */
+function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
   if (req.user?.role !== "admin" && req.user?.role !== "preparer") {
-    return res.status(403).json({ message: "Admin access required" });
+    res.status(403).json({ message: "Acceso de administrador requerido" });
+    return;
   }
   next();
 }
 
+/**
+ * Opciones de cookie segura para tokens JWT
+ * 
+ * @security
+ * - httpOnly: Previene acceso desde JavaScript (XSS)
+ * - secure: Solo HTTPS en producción
+ * - sameSite: Previene CSRF
+ * - path: Solo envía en rutas de la app
+ */
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict" as const,
+  maxAge: TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+  path: "/",
+};
+
+// =============================================================================
+// CATEGORÍAS DE DOCUMENTOS
+// =============================================================================
+
+/**
+ * Categorías válidas para documentos tributarios
+ * 
+ * @property id_document - Identificación (INE, pasaporte)
+ * @property w2 - Formulario W-2 de empleo
+ * @property form_1099 - Formularios 1099 varios
+ * @property bank_statement - Estados de cuenta bancarios
+ * @property receipt - Recibos y comprobantes
+ * @property previous_return - Declaraciones anteriores
+ * @property social_security - Tarjeta de seguro social
+ * @property proof_of_address - Comprobante de domicilio
+ * @property other - Otros documentos
+ */
+const VALID_CATEGORIES = [
+  "id_document", 
+  "w2", 
+  "form_1099", 
+  "bank_statement", 
+  "receipt", 
+  "previous_return", 
+  "social_security", 
+  "proof_of_address", 
+  "other"
+];
+
+// =============================================================================
+// REGISTRO DE RUTAS
+// =============================================================================
+
+/**
+ * Registra todas las rutas API en la aplicación Express
+ * 
+ * Esta función configura:
+ * - Autenticación OAuth (Replit Auth)
+ * - Servicio WebSocket
+ * - Endpoints de autenticación
+ * - Endpoints de cliente
+ * - Endpoints de administración
+ * - Sistema de mensajería
+ * 
+ * @param httpServer - Servidor HTTP para WebSocket
+ * @param app - Instancia de Express
+ * @returns Promise<Server> - Servidor HTTP configurado
+ */
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
+  // Inicializar WebSocket para notificaciones en tiempo real
   wsService.initialize(httpServer);
+  
+  // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
   await setupAuth(app);
 
-  app.post("/api/auth/register", async (req: Request, res: Response) => {
+  // ===========================================================================
+  // ENDPOINTS DE AUTENTICACIÓN
+  // ===========================================================================
+
+  /**
+   * POST /api/auth/register
+   * 
+   * Registra un nuevo usuario cliente en el sistema
+   * 
+   * @body {string} email - Email único del usuario
+   * @body {string} password - Contraseña segura
+   * @body {string} name - Nombre completo
+   * @body {string} [phone] - Teléfono opcional
+   * 
+   * @returns {object} Usuario creado (sin contraseña)
+   * @sets Cookie 'token' con JWT válido por 7 días
+   * 
+   * @security
+   * - Rate limited: 5 intentos / 15 min
+   * - Contraseña hasheada con bcrypt (12 rondas)
+   * - Email normalizado a minúsculas
+   * 
+   * @sideeffects
+   * - Crea usuario en base de datos
+   * - Envía email de bienvenida
+   * - Registra actividad en log
+   */
+  app.post("/api/auth/register", authLimiter, async (req: Request, res: Response) => {
     try {
+      // Validar datos de entrada
       const result = registerSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
-          message: "Validation failed", 
+        res.status(400).json({ 
+          message: "Validación fallida", 
           errors: result.error.errors.map(e => e.message)
         });
+        return;
       }
 
       const { email, password, name, phone } = result.data;
 
+      // Verificar email único
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
-        return res.status(400).json({ message: "Email already registered" });
+        res.status(400).json({ message: "Este email ya está registrado" });
+        return;
       }
 
-      const hashedPassword = await bcrypt.hash(password, 12);
+      // Hashear contraseña con bcrypt
+      const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
+      // Crear usuario
       const user = await storage.createUser({
         email,
         password: hashedPassword,
@@ -154,106 +556,184 @@ export async function registerRoutes(
         role: "client",
       });
 
+      // Registrar actividad
       await storage.createActivityLog({
         userId: user.id,
         action: "user_registered",
-        details: `New user registered: ${email}`,
+        details: `Nuevo usuario registrado: ${email}`,
       });
 
+      // Enviar email de bienvenida (no bloquea la respuesta)
       sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
 
+      // Generar token JWT
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         JWT_SECRET,
-        { expiresIn: "7d" }
+        { expiresIn: `${TOKEN_EXPIRY_DAYS}d` }
       );
 
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: "/",
-      });
+      // Establecer cookie segura
+      res.cookie("token", token, COOKIE_OPTIONS);
 
       res.json({
         user: { id: user.id, email: user.email, role: user.role, name: user.name },
       });
     } catch (error) {
-      console.error("Registration error:", error);
-      res.status(500).json({ message: "Registration failed" });
+      console.error("Error de registro:", error);
+      res.status(500).json({ message: "Error al registrar usuario" });
     }
   });
 
-  app.post("/api/auth/login", async (req: Request, res: Response) => {
+  /**
+   * POST /api/auth/login
+   * 
+   * Inicia sesión de un usuario existente
+   * 
+   * @body {string} email - Email del usuario
+   * @body {string} password - Contraseña del usuario
+   * 
+   * @returns {object} Datos del usuario autenticado
+   * @sets Cookie 'token' con JWT válido por 7 días
+   * 
+   * @security
+   * - Rate limited: 5 intentos / 15 min
+   * - Respuesta genérica para credenciales inválidas
+   * - Comparación de contraseña con timing constante
+   */
+  app.post("/api/auth/login", authLimiter, async (req: Request, res: Response) => {
     try {
+      // Validar datos de entrada
       const result = loginSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ 
-          message: "Validation failed", 
+        res.status(400).json({ 
+          message: "Validación fallida", 
           errors: result.error.errors.map(e => e.message)
         });
+        return;
       }
 
       const { email, password } = result.data;
 
+      // Buscar usuario
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        // Respuesta genérica para no revelar si el email existe
+        res.status(401).json({ message: "Credenciales inválidas" });
+        return;
       }
 
+      // Verificar contraseña
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {
-        return res.status(401).json({ message: "Invalid credentials" });
+        res.status(401).json({ message: "Credenciales inválidas" });
+        return;
       }
 
+      // Registrar actividad
       await storage.createActivityLog({
         userId: user.id,
         action: "user_login",
-        details: `User logged in: ${email}`,
+        details: `Usuario inició sesión: ${email}`,
       });
 
+      // Generar token JWT
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         JWT_SECRET,
-        { expiresIn: "7d" }
+        { expiresIn: `${TOKEN_EXPIRY_DAYS}d` }
       );
 
-      res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-        path: "/",
-      });
+      // Establecer cookie segura
+      res.cookie("token", token, COOKIE_OPTIONS);
 
       res.json({
         user: { id: user.id, email: user.email, role: user.role, name: user.name },
       });
     } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Login failed" });
+      console.error("Error de login:", error);
+      res.status(500).json({ message: "Error al iniciar sesión" });
     }
   });
 
+  /**
+   * GET /api/auth/me
+   * 
+   * Obtiene información del usuario autenticado actual
+   * 
+   * @requires authenticateToken
+   * @returns {object} Datos del usuario sin información sensible
+   */
   app.get("/api/auth/me", authenticateToken, async (req: AuthRequest, res: Response) => {
     res.json({ user: req.user });
   });
 
-  app.post("/api/auth/logout", (req: Request, res: Response) => {
-    res.clearCookie("token");
-    res.json({ message: "Logged out successfully" });
+  /**
+   * POST /api/auth/logout
+   * 
+   * Cierra la sesión del usuario actual
+   * 
+   * @clears Cookie 'token'
+   * @returns {object} Mensaje de confirmación
+   */
+  app.post("/api/auth/logout", (_req: Request, res: Response) => {
+    res.clearCookie("token", { path: "/" });
+    res.json({ message: "Sesión cerrada exitosamente" });
   });
 
-  app.post("/api/contact", async (req: Request, res: Response) => {
+  /**
+   * GET /api/auth/ws-token
+   * 
+   * Genera un token de corta duración para conexión WebSocket
+   * 
+   * @requires authenticateToken
+   * @returns {object} Token WebSocket válido por 1 hora
+   * 
+   * @security Token separado del principal para limitar exposición
+   */
+  app.get("/api/auth/ws-token", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const wsToken = jwt.sign(
+        { id: req.user!.id, role: req.user!.role },
+        JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+      res.json({ token: wsToken });
+    } catch (error) {
+      console.error("Error generando token WS:", error);
+      res.status(500).json({ message: "Error al generar token" });
+    }
+  });
+
+  // ===========================================================================
+  // ENDPOINTS PÚBLICOS
+  // ===========================================================================
+
+  /**
+   * POST /api/contact
+   * 
+   * Procesa envíos del formulario de contacto público
+   * 
+   * @body {string} name - Nombre del contacto
+   * @body {string} email - Email de contacto
+   * @body {string} message - Mensaje
+   * @body {string} [phone] - Teléfono opcional
+   * @body {string} [service] - Servicio de interés
+   * 
+   * @security Rate limited: 3 envíos / hora
+   * @sideeffects Envía notificación por email a admin
+   */
+  app.post("/api/contact", contactLimiter, async (req: Request, res: Response) => {
     try {
       const result = insertContactSubmissionSchema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ message: "Invalid data", errors: result.error.errors });
+        res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+        return;
       }
 
       const contact = await storage.createContactSubmission(result.data);
       
+      // Notificar al administrador
       sendContactFormNotification({
         name: contact.name,
         email: contact.email,
@@ -264,148 +744,267 @@ export async function registerRoutes(
 
       res.json({ success: true, contact });
     } catch (error) {
-      console.error("Contact submission error:", error);
-      res.status(500).json({ message: "Failed to submit contact form" });
+      console.error("Error en formulario de contacto:", error);
+      res.status(500).json({ message: "Error al enviar formulario" });
     }
   });
 
+  // ===========================================================================
+  // ENDPOINTS DE CLIENTE - CASOS
+  // ===========================================================================
+
+  /**
+   * GET /api/cases
+   * 
+   * Obtiene los casos tributarios del usuario autenticado
+   * 
+   * @requires authenticateToken
+   * @returns {TaxCase[]} Lista de casos del cliente
+   */
   app.get("/api/cases", authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
       const cases = await storage.getTaxCasesByClient(req.user!.id);
       res.json(cases);
     } catch (error) {
-      console.error("Get cases error:", error);
-      res.status(500).json({ message: "Failed to get cases" });
+      console.error("Error obteniendo casos:", error);
+      res.status(500).json({ message: "Error al obtener casos" });
     }
   });
 
+  // ===========================================================================
+  // ENDPOINTS DE CLIENTE - DOCUMENTOS
+  // ===========================================================================
+
+  /**
+   * GET /api/documents
+   * 
+   * Obtiene los documentos del usuario autenticado
+   * 
+   * @requires authenticateToken
+   * @returns {Document[]} Lista de documentos del cliente
+   */
   app.get("/api/documents", authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
       const documents = await storage.getDocumentsByClient(req.user!.id);
       res.json(documents);
     } catch (error) {
-      console.error("Get documents error:", error);
-      res.status(500).json({ message: "Failed to get documents" });
+      console.error("Error obteniendo documentos:", error);
+      res.status(500).json({ message: "Error al obtener documentos" });
     }
   });
 
-  app.post("/api/documents/upload", authenticateToken, upload.single("file"), async (req: AuthRequest, res: Response) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
+  /**
+   * POST /api/documents/upload
+   * 
+   * Sube un nuevo documento al sistema
+   * 
+   * @requires authenticateToken
+   * @body {File} file - Archivo a subir (multipart/form-data)
+   * @body {number} [caseId] - ID del caso asociado
+   * @body {string} [category] - Categoría del documento
+   * @body {string} [description] - Descripción opcional
+   * 
+   * @security
+   * - Rate limited: 10 archivos / 15 min
+   * - Máximo 10MB por archivo
+   * - Solo tipos permitidos (PDF, imágenes, Word)
+   * - Verificación de propiedad del caso
+   * 
+   * @sideeffects
+   * - Guarda archivo en servidor
+   * - Notifica a admin por email
+   * - Envía notificación WebSocket
+   */
+  app.post(
+    "/api/documents/upload", 
+    authenticateToken, 
+    uploadLimiter,
+    upload.single("file"), 
+    async (req: AuthRequest, res: Response) => {
+      try {
+        if (!req.file) {
+          res.status(400).json({ message: "No se recibió ningún archivo" });
+          return;
+        }
 
-      const { caseId, category, description } = req.body;
-      let validCaseId: number | null = null;
+        const { caseId, category, description } = req.body;
+        let validCaseId: number | null = null;
 
-      if (caseId) {
-        validCaseId = parseInt(caseId);
-        if (!isNaN(validCaseId)) {
-          const taxCase = await storage.getTaxCase(validCaseId);
-          if (!taxCase || taxCase.clientId !== req.user!.id) {
-            return res.status(403).json({ message: "Access denied" });
+        // Verificar propiedad del caso si se especifica
+        if (caseId) {
+          validCaseId = parseInt(caseId);
+          if (!isNaN(validCaseId)) {
+            const taxCase = await storage.getTaxCase(validCaseId);
+            if (!taxCase || taxCase.clientId !== req.user!.id) {
+              // Eliminar archivo subido
+              fs.unlinkSync(req.file.path);
+              res.status(403).json({ message: "Acceso denegado al caso" });
+              return;
+            }
           }
         }
+
+        // Validar categoría
+        const docCategory = VALID_CATEGORIES.includes(category) ? category : "other";
+
+        // Crear registro de documento
+        const document = await storage.createDocument({
+          caseId: validCaseId,
+          clientId: req.user!.id,
+          fileName: req.file.originalname,
+          filePath: req.file.path,
+          fileType: req.file.mimetype,
+          fileSize: req.file.size,
+          category: docCategory,
+          description: description || null,
+          uploadedById: req.user!.id,
+          isFromPreparer: false,
+        });
+
+        // Registrar actividad
+        await storage.createActivityLog({
+          userId: req.user!.id,
+          action: "document_uploaded",
+          details: `Documento subido: ${req.file.originalname} (${docCategory})`,
+        });
+
+        // Notificar al administrador
+        sendDocumentUploadNotification({
+          clientName: req.user!.name,
+          clientEmail: req.user!.email,
+          fileName: req.file.originalname,
+          category: docCategory,
+        }).catch(console.error);
+
+        // Notificación en tiempo real
+        wsService.notifyDocumentUpload(
+          req.user!.id,
+          req.user!.name,
+          req.file.originalname,
+          validCaseId || undefined
+        );
+
+        res.json(document);
+      } catch (error) {
+        console.error("Error de carga:", error);
+        res.status(500).json({ message: "Error al subir documento" });
       }
-
-      const validCategories = ["id_document", "w2", "form_1099", "bank_statement", "receipt", "previous_return", "social_security", "proof_of_address", "other"];
-      const docCategory = validCategories.includes(category) ? category : "other";
-
-      const document = await storage.createDocument({
-        caseId: validCaseId,
-        clientId: req.user!.id,
-        fileName: req.file.originalname,
-        filePath: req.file.path,
-        fileType: req.file.mimetype,
-        fileSize: req.file.size,
-        category: docCategory,
-        description: description || null,
-        uploadedById: req.user!.id,
-        isFromPreparer: false,
-      });
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "document_uploaded",
-        details: `Document uploaded: ${req.file.originalname} (${docCategory})`,
-      });
-
-      sendDocumentUploadNotification({
-        clientName: req.user!.name,
-        clientEmail: req.user!.email,
-        fileName: req.file.originalname,
-        category: docCategory,
-      }).catch(console.error);
-
-      wsService.notifyDocumentUpload(
-        req.user!.id,
-        req.user!.name,
-        req.file.originalname,
-        validCaseId || undefined
-      );
-
-      res.json(document);
-    } catch (error) {
-      console.error("Upload error:", error);
-      res.status(500).json({ message: "Failed to upload document" });
     }
-  });
+  );
 
+  /**
+   * GET /api/documents/:id/download
+   * 
+   * Descarga un documento específico
+   * 
+   * @requires authenticateToken
+   * @param {number} id - ID del documento
+   * 
+   * @security
+   * - Solo el propietario o admin pueden descargar
+   * - Verifica existencia del archivo
+   */
   app.get("/api/documents/:id/download", authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
       const documentId = parseInt(req.params.id);
+      if (isNaN(documentId)) {
+        res.status(400).json({ message: "ID de documento inválido" });
+        return;
+      }
+
       const document = await storage.getDocument(documentId);
 
       if (!document) {
-        return res.status(404).json({ message: "Document not found" });
+        res.status(404).json({ message: "Documento no encontrado" });
+        return;
       }
 
+      // Verificar permisos
       const isAdmin = req.user!.role === "admin" || req.user!.role === "preparer";
       const isOwner = document.clientId === req.user!.id;
 
       if (!isAdmin && !isOwner) {
-        return res.status(403).json({ message: "Access denied" });
+        res.status(403).json({ message: "Acceso denegado" });
+        return;
       }
 
+      // Verificar que el archivo existe
       if (!fs.existsSync(document.filePath)) {
-        return res.status(404).json({ message: "File not found" });
+        res.status(404).json({ message: "Archivo no encontrado" });
+        return;
       }
 
       res.download(document.filePath, document.fileName);
     } catch (error) {
-      console.error("Download error:", error);
-      res.status(500).json({ message: "Failed to download document" });
+      console.error("Error de descarga:", error);
+      res.status(500).json({ message: "Error al descargar documento" });
     }
   });
 
+  // ===========================================================================
+  // ENDPOINTS DE CLIENTE - CITAS
+  // ===========================================================================
+
+  /**
+   * GET /api/appointments
+   * 
+   * Obtiene las citas del usuario autenticado
+   * 
+   * @requires authenticateToken
+   * @returns {Appointment[]} Lista de citas del cliente
+   */
   app.get("/api/appointments", authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
       const appointments = await storage.getAppointmentsByClient(req.user!.id);
       res.json(appointments);
     } catch (error) {
-      console.error("Get appointments error:", error);
-      res.status(500).json({ message: "Failed to get appointments" });
+      console.error("Error obteniendo citas:", error);
+      res.status(500).json({ message: "Error al obtener citas" });
     }
   });
 
+  /**
+   * POST /api/appointments
+   * 
+   * Agenda una nueva cita con el preparador
+   * 
+   * @requires authenticateToken
+   * @body {string} appointmentDate - Fecha y hora ISO 8601
+   * @body {string} [notes] - Notas para la cita
+   * 
+   * @security Verifica conflictos de horario (±30 min)
+   * 
+   * @sideeffects
+   * - Crea cita en base de datos
+   * - Envía confirmación por email
+   * - Notifica a admin por WebSocket
+   */
   app.post("/api/appointments", authenticateToken, async (req: AuthRequest, res: Response) => {
     try {
       const { appointmentDate, notes } = req.body;
 
       if (!appointmentDate) {
-        return res.status(400).json({ message: "Appointment date is required" });
+        res.status(400).json({ message: "La fecha de cita es requerida" });
+        return;
       }
 
       const parsedDate = new Date(appointmentDate);
+      if (isNaN(parsedDate.getTime())) {
+        res.status(400).json({ message: "Formato de fecha inválido" });
+        return;
+      }
       
+      // Verificar conflictos de horario
       const hasConflict = await storage.checkAppointmentConflict(parsedDate);
       if (hasConflict) {
-        return res.status(409).json({ 
-          message: "This time slot is not available. Please choose a different time.",
+        res.status(409).json({ 
+          message: "Este horario no está disponible. Por favor elija otro.",
           conflict: true
         });
+        return;
       }
 
+      // Crear cita
       const appointment = await storage.createAppointment({
         clientId: req.user!.id,
         appointmentDate: parsedDate,
@@ -413,12 +1012,14 @@ export async function registerRoutes(
         status: "scheduled",
       });
 
+      // Registrar actividad
       await storage.createActivityLog({
         userId: req.user!.id,
         action: "appointment_scheduled",
-        details: `Appointment scheduled for ${appointmentDate}`,
+        details: `Cita agendada para ${appointmentDate}`,
       });
 
+      // Enviar confirmación por email
       sendAppointmentConfirmation({
         clientName: req.user!.name,
         clientEmail: req.user!.email,
@@ -426,6 +1027,7 @@ export async function registerRoutes(
         notes: notes || undefined,
       }).catch(console.error);
 
+      // Notificación en tiempo real
       wsService.notifyNewAppointment(
         req.user!.id,
         parsedDate.toISOString(),
@@ -434,78 +1036,309 @@ export async function registerRoutes(
 
       res.json(appointment);
     } catch (error) {
-      console.error("Create appointment error:", error);
-      res.status(500).json({ message: "Failed to create appointment" });
+      console.error("Error creando cita:", error);
+      res.status(500).json({ message: "Error al crear cita" });
     }
   });
 
-  app.get("/api/admin/stats", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  // ===========================================================================
+  // ENDPOINTS DE MENSAJERÍA
+  // ===========================================================================
+
+  /**
+   * GET /api/messages/conversations
+   * 
+   * Obtiene las conversaciones del usuario
+   * 
+   * @requires authenticateToken
+   * @returns {Conversation[]} Lista de conversaciones con último mensaje
+   */
+  app.get("/api/messages/conversations", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const conversations = await storage.getConversationsForUser(req.user!.id);
+      res.json(conversations);
+    } catch (error) {
+      console.error("Error obteniendo conversaciones:", error);
+      res.status(500).json({ message: "Error al obtener conversaciones" });
+    }
+  });
+
+  /**
+   * GET /api/messages/unread-count
+   * 
+   * Obtiene el conteo de mensajes no leídos
+   * 
+   * @requires authenticateToken
+   * @returns {object} Conteo de mensajes sin leer
+   */
+  app.get("/api/messages/unread-count", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const count = await storage.getUnreadCount(req.user!.id);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error obteniendo conteo:", error);
+      res.status(500).json({ message: "Error al obtener conteo" });
+    }
+  });
+
+  /**
+   * GET /api/messages/:partnerId
+   * 
+   * Obtiene el historial de mensajes con un usuario específico
+   * 
+   * @requires authenticateToken
+   * @param {number} partnerId - ID del otro usuario
+   * 
+   * @sideeffects Marca los mensajes como leídos
+   */
+  app.get("/api/messages/:partnerId", authenticateToken, async (req: AuthRequest, res: Response) => {
+    try {
+      const partnerId = parseInt(req.params.partnerId);
+      if (isNaN(partnerId)) {
+        res.status(400).json({ message: "ID de usuario inválido" });
+        return;
+      }
+
+      const messages = await storage.getConversation(req.user!.id, partnerId);
+      
+      // Marcar como leídos
+      await storage.markMessagesAsRead(req.user!.id, partnerId);
+      
+      res.json(messages);
+    } catch (error) {
+      console.error("Error obteniendo mensajes:", error);
+      res.status(500).json({ message: "Error al obtener mensajes" });
+    }
+  });
+
+  /**
+   * POST /api/messages
+   * 
+   * Envía un nuevo mensaje a otro usuario
+   * 
+   * @requires authenticateToken
+   * @body {number} recipientId - ID del destinatario
+   * @body {string} message - Contenido del mensaje
+   * @body {number} [caseId] - Caso relacionado opcional
+   * 
+   * @security Rate limited: 30 mensajes / 15 min
+   * @sideeffects Notifica al destinatario por WebSocket
+   */
+  app.post("/api/messages", authenticateToken, messageLimiter, async (req: AuthRequest, res: Response) => {
+    try {
+      // Validar datos de entrada
+      const result = messageSchema.safeParse({
+        ...req.body,
+        recipientId: parseInt(req.body.recipientId)
+      });
+      
+      if (!result.success) {
+        res.status(400).json({ 
+          message: "Datos inválidos", 
+          errors: result.error.errors.map(e => e.message) 
+        });
+        return;
+      }
+
+      const { recipientId, message, caseId } = result.data;
+
+      // Verificar que el destinatario existe
+      const recipient = await storage.getUser(recipientId);
+      if (!recipient) {
+        res.status(404).json({ message: "Destinatario no encontrado" });
+        return;
+      }
+
+      // Crear mensaje
+      const newMessage = await storage.createMessage({
+        senderId: req.user!.id,
+        recipientId,
+        message,
+        caseId: caseId || null,
+        isRead: false,
+      });
+
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "message_sent",
+        details: `Mensaje enviado a ${recipient.name}`,
+      });
+
+      // Notificación en tiempo real
+      wsService.notifyNewMessage(
+        req.user!.id,
+        recipientId,
+        message.substring(0, 100) + (message.length > 100 ? "..." : "")
+      );
+
+      res.json(newMessage);
+    } catch (error) {
+      console.error("Error enviando mensaje:", error);
+      res.status(500).json({ message: "Error al enviar mensaje" });
+    }
+  });
+
+  /**
+   * GET /api/preparers
+   * 
+   * Obtiene la lista de preparadores disponibles para mensajería
+   * 
+   * @requires authenticateToken
+   * @returns {Preparer[]} Lista de preparadores con id, nombre y rol
+   */
+  app.get("/api/preparers", authenticateToken, async (_req: AuthRequest, res: Response) => {
+    try {
+      const preparers = await db.select().from(users).where(
+        sql`${users.role} IN ('admin', 'preparer')`
+      );
+      res.json(preparers.map(p => ({ id: p.id, name: p.name, role: p.role })));
+    } catch (error) {
+      console.error("Error obteniendo preparadores:", error);
+      res.status(500).json({ message: "Error al obtener preparadores" });
+    }
+  });
+
+  // ===========================================================================
+  // ENDPOINTS DE ADMINISTRACIÓN
+  // ===========================================================================
+
+  /**
+   * GET /api/admin/stats
+   * 
+   * Obtiene estadísticas del dashboard de administración
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {object} Estadísticas generales del sistema
+   */
+  app.get("/api/admin/stats", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const stats = await storage.getAdminStats();
       res.json(stats);
     } catch (error) {
-      console.error("Get stats error:", error);
-      res.status(500).json({ message: "Failed to get stats" });
+      console.error("Error obteniendo estadísticas:", error);
+      res.status(500).json({ message: "Error al obtener estadísticas" });
     }
   });
 
-  app.get("/api/admin/clients", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  /**
+   * GET /api/admin/clients
+   * 
+   * Obtiene la lista de clientes con detalles
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {Client[]} Clientes con conteo de documentos y casos
+   */
+  app.get("/api/admin/clients", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const clients = await storage.getClientsWithDetails();
       res.json(clients);
     } catch (error) {
-      console.error("Get clients error:", error);
-      res.status(500).json({ message: "Failed to get clients" });
+      console.error("Error obteniendo clientes:", error);
+      res.status(500).json({ message: "Error al obtener clientes" });
     }
   });
 
+  /**
+   * GET /api/admin/clients/:id
+   * 
+   * Obtiene información detallada de un cliente
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @param {number} id - ID del cliente
+   * @returns {object} Cliente con documentos, casos y citas
+   */
   app.get("/api/admin/clients/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const clientId = parseInt(req.params.id);
+      if (isNaN(clientId)) {
+        res.status(400).json({ message: "ID de cliente inválido" });
+        return;
+      }
+
       const client = await storage.getUser(clientId);
       if (!client) {
-        return res.status(404).json({ message: "Client not found" });
+        res.status(404).json({ message: "Cliente no encontrado" });
+        return;
       }
+      
       const documents = await storage.getDocumentsByClient(clientId);
       const cases = await storage.getTaxCasesByClient(clientId);
       const appointments = await storage.getAppointmentsByClient(clientId);
+      
       res.json({ client, documents, cases, appointments });
     } catch (error) {
-      console.error("Get client details error:", error);
-      res.status(500).json({ message: "Failed to get client details" });
+      console.error("Error obteniendo detalles del cliente:", error);
+      res.status(500).json({ message: "Error al obtener detalles" });
     }
   });
 
-  app.get("/api/admin/documents", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  /**
+   * GET /api/admin/documents
+   * 
+   * Obtiene todos los documentos del sistema
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {Document[]} Todos los documentos
+   */
+  app.get("/api/admin/documents", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const documents = await storage.getAllDocuments();
       res.json(documents);
     } catch (error) {
-      console.error("Get documents error:", error);
-      res.status(500).json({ message: "Failed to get documents" });
+      console.error("Error obteniendo documentos:", error);
+      res.status(500).json({ message: "Error al obtener documentos" });
     }
   });
 
-  app.get("/api/admin/cases", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  /**
+   * GET /api/admin/cases
+   * 
+   * Obtiene todos los casos tributarios
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {TaxCase[]} Todos los casos
+   */
+  app.get("/api/admin/cases", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const cases = await storage.getAllTaxCases();
       res.json(cases);
     } catch (error) {
-      console.error("Get cases error:", error);
-      res.status(500).json({ message: "Failed to get cases" });
+      console.error("Error obteniendo casos:", error);
+      res.status(500).json({ message: "Error al obtener casos" });
     }
   });
 
+  /**
+   * POST /api/admin/cases
+   * 
+   * Crea un nuevo caso tributario para un cliente
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @body {number} clientId - ID del cliente
+   * @body {string} filingYear - Año fiscal (YYYY)
+   * @body {string} [filingStatus] - Estado civil fiscal
+   * @body {number} [dependents] - Número de dependientes
+   */
   app.post("/api/admin/cases", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
     try {
-      const { clientId, filingYear, filingStatus, dependents } = req.body;
+      const result = caseSchema.safeParse({
+        ...req.body,
+        clientId: parseInt(req.body.clientId)
+      });
 
-      if (!clientId || !filingYear) {
-        return res.status(400).json({ message: "Client ID and filing year are required" });
+      if (!result.success) {
+        res.status(400).json({ 
+          message: "Datos inválidos", 
+          errors: result.error.errors.map(e => e.message) 
+        });
+        return;
       }
 
+      const { clientId, filingYear, filingStatus, dependents } = result.data;
+
       const taxCase = await storage.createTaxCase({
-        clientId: parseInt(clientId),
+        clientId,
         filingYear,
         filingStatus: filingStatus || null,
         dependents: dependents || 0,
@@ -515,24 +1348,54 @@ export async function registerRoutes(
       await storage.createActivityLog({
         userId: req.user!.id,
         action: "case_created",
-        details: `Case created for client ${clientId}, year ${filingYear}`,
+        details: `Caso creado para cliente ${clientId}, año ${filingYear}`,
       });
 
       res.json(taxCase);
     } catch (error) {
-      console.error("Create case error:", error);
-      res.status(500).json({ message: "Failed to create case" });
+      console.error("Error creando caso:", error);
+      res.status(500).json({ message: "Error al crear caso" });
     }
   });
 
+  /**
+   * PATCH /api/admin/cases/:id
+   * 
+   * Actualiza un caso tributario existente
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @param {number} id - ID del caso
+   * @body {string} [status] - Nuevo estado
+   * @body {string} [notes] - Notas del caso
+   * @body {number} [finalAmount] - Monto final del reembolso/pago
+   * 
+   * @sideeffects
+   * - Notifica al cliente si cambia el estado
+   * - Envía email de actualización
+   */
   app.patch("/api/admin/cases/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
     try {
       const caseId = parseInt(req.params.id);
-      const { status, notes, finalAmount } = req.body;
+      if (isNaN(caseId)) {
+        res.status(400).json({ message: "ID de caso inválido" });
+        return;
+      }
+
+      const result = caseUpdateSchema.safeParse(req.body);
+      if (!result.success) {
+        res.status(400).json({ 
+          message: "Datos inválidos", 
+          errors: result.error.errors.map(e => e.message) 
+        });
+        return;
+      }
+
+      const { status, notes, finalAmount } = result.data;
 
       const existingCase = await storage.getTaxCase(caseId);
       if (!existingCase) {
-        return res.status(404).json({ message: "Case not found" });
+        res.status(404).json({ message: "Caso no encontrado" });
+        return;
       }
 
       const updatedCase = await storage.updateTaxCase(caseId, {
@@ -542,15 +1405,17 @@ export async function registerRoutes(
       });
 
       if (!updatedCase) {
-        return res.status(404).json({ message: "Case not found" });
+        res.status(404).json({ message: "Caso no encontrado" });
+        return;
       }
 
       await storage.createActivityLog({
         userId: req.user!.id,
         action: "case_updated",
-        details: `Case ${caseId} updated: status=${status}`,
+        details: `Caso ${caseId} actualizado: status=${status}`,
       });
 
+      // Notificar al cliente si cambió el estado
       if (status && status !== existingCase.status) {
         const client = await storage.getUser(existingCase.clientId);
         if (client) {
@@ -574,151 +1439,82 @@ export async function registerRoutes(
 
       res.json(updatedCase);
     } catch (error) {
-      console.error("Update case error:", error);
-      res.status(500).json({ message: "Failed to update case" });
+      console.error("Error actualizando caso:", error);
+      res.status(500).json({ message: "Error al actualizar caso" });
     }
   });
 
-  app.get("/api/admin/appointments", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  /**
+   * GET /api/admin/appointments
+   * 
+   * Obtiene todas las citas del sistema
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {Appointment[]} Todas las citas
+   */
+  app.get("/api/admin/appointments", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const appointments = await storage.getAllAppointments();
       res.json(appointments);
     } catch (error) {
-      console.error("Get appointments error:", error);
-      res.status(500).json({ message: "Failed to get appointments" });
+      console.error("Error obteniendo citas:", error);
+      res.status(500).json({ message: "Error al obtener citas" });
     }
   });
 
-  app.get("/api/admin/contacts", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  /**
+   * GET /api/admin/contacts
+   * 
+   * Obtiene todas las solicitudes de contacto
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {ContactSubmission[]} Todas las solicitudes
+   */
+  app.get("/api/admin/contacts", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const contacts = await storage.getAllContactSubmissions();
       res.json(contacts);
     } catch (error) {
-      console.error("Get contacts error:", error);
-      res.status(500).json({ message: "Failed to get contacts" });
+      console.error("Error obteniendo contactos:", error);
+      res.status(500).json({ message: "Error al obtener contactos" });
     }
   });
 
-  app.get("/api/messages/conversations", authenticateToken, async (req: AuthRequest, res: Response) => {
-    try {
-      const conversations = await storage.getConversationsForUser(req.user!.id);
-      res.json(conversations);
-    } catch (error) {
-      console.error("Get conversations error:", error);
-      res.status(500).json({ message: "Failed to get conversations" });
-    }
-  });
-
-  app.get("/api/messages/unread-count", authenticateToken, async (req: AuthRequest, res: Response) => {
-    try {
-      const count = await storage.getUnreadCount(req.user!.id);
-      res.json({ count });
-    } catch (error) {
-      console.error("Get unread count error:", error);
-      res.status(500).json({ message: "Failed to get unread count" });
-    }
-  });
-
-  app.get("/api/messages/:partnerId", authenticateToken, async (req: AuthRequest, res: Response) => {
-    try {
-      const partnerId = parseInt(req.params.partnerId);
-      const messages = await storage.getConversation(req.user!.id, partnerId);
-      
-      await storage.markMessagesAsRead(req.user!.id, partnerId);
-      
-      res.json(messages);
-    } catch (error) {
-      console.error("Get messages error:", error);
-      res.status(500).json({ message: "Failed to get messages" });
-    }
-  });
-
-  app.post("/api/messages", authenticateToken, async (req: AuthRequest, res: Response) => {
-    try {
-      const { recipientId, message, caseId } = req.body;
-
-      if (!recipientId || !message) {
-        return res.status(400).json({ message: "Recipient and message are required" });
-      }
-
-      const recipient = await storage.getUser(parseInt(recipientId));
-      if (!recipient) {
-        return res.status(404).json({ message: "Recipient not found" });
-      }
-
-      const newMessage = await storage.createMessage({
-        senderId: req.user!.id,
-        recipientId: parseInt(recipientId),
-        message,
-        caseId: caseId ? parseInt(caseId) : null,
-        isRead: false,
-      });
-
-      await storage.createActivityLog({
-        userId: req.user!.id,
-        action: "message_sent",
-        details: `Message sent to ${recipient.name}`,
-      });
-
-      wsService.notifyNewMessage(
-        req.user!.id,
-        parseInt(recipientId),
-        message.substring(0, 100) + (message.length > 100 ? "..." : "")
-      );
-
-      res.json(newMessage);
-    } catch (error) {
-      console.error("Send message error:", error);
-      res.status(500).json({ message: "Failed to send message" });
-    }
-  });
-
-  app.get("/api/admin/preparers", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
-    try {
-      const allUsers = await storage.getAllClients();
-      const preparers = await db.select().from(users).where(
-        sql`${users.role} IN ('admin', 'preparer')`
-      );
-      res.json(preparers.map(p => ({ id: p.id, name: p.name, role: p.role })));
-    } catch (error) {
-      console.error("Get preparers error:", error);
-      res.status(500).json({ message: "Failed to get preparers" });
-    }
-  });
-
-  app.get("/api/preparers", authenticateToken, async (req: AuthRequest, res: Response) => {
+  /**
+   * GET /api/admin/preparers
+   * 
+   * Obtiene la lista de preparadores (para asignación)
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {Preparer[]} Lista de preparadores
+   */
+  app.get("/api/admin/preparers", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const preparers = await db.select().from(users).where(
         sql`${users.role} IN ('admin', 'preparer')`
       );
       res.json(preparers.map(p => ({ id: p.id, name: p.name, role: p.role })));
     } catch (error) {
-      console.error("Get preparers error:", error);
-      res.status(500).json({ message: "Failed to get preparers" });
+      console.error("Error obteniendo preparadores:", error);
+      res.status(500).json({ message: "Error al obtener preparadores" });
     }
   });
 
-  app.get("/api/admin/analytics", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  /**
+   * GET /api/admin/analytics
+   * 
+   * Obtiene datos analíticos para el dashboard
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {object} Datos de ingresos, tendencias y métricas
+   */
+  app.get("/api/admin/analytics", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
       const analytics = await storage.getAnalyticsData();
       res.json(analytics);
     } catch (error) {
-      console.error("Get analytics error:", error);
-      res.status(500).json({ message: "Failed to get analytics" });
-    }
-  });
-
-  app.get("/api/auth/ws-token", authenticateToken, async (req: AuthRequest, res: Response) => {
-    try {
-      const wsToken = jwt.sign(
-        { id: req.user!.id, role: req.user!.role },
-        JWT_SECRET,
-        { expiresIn: "1h" }
-      );
-      res.json({ token: wsToken });
-    } catch (error) {
-      console.error("WS token error:", error);
-      res.status(500).json({ message: "Failed to generate WS token" });
+      console.error("Error obteniendo analytics:", error);
+      res.status(500).json({ message: "Error al obtener analytics" });
     }
   });
 

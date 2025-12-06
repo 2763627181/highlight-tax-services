@@ -1,9 +1,93 @@
+/**
+ * @fileoverview Servicio de Email de Highlight Tax Services
+ * 
+ * Este módulo proporciona funcionalidades de envío de correos electrónicos
+ * transaccionales usando la integración de Resend con Replit.
+ * 
+ * @module server/email
+ * @version 1.0.0
+ * 
+ * ## Tipos de Emails
+ * - Notificaciones de formulario de contacto
+ * - Emails de bienvenida a nuevos usuarios
+ * - Notificaciones de documentos subidos
+ * - Actualizaciones de estado de casos
+ * - Confirmaciones de citas
+ * 
+ * ## Características
+ * - Integración con Resend via Replit Connectors
+ * - Plantillas HTML bilingües (inglés/español)
+ * - Manejo de errores no bloqueante
+ * - Notificación dual (cliente + admin) donde aplica
+ * 
+ * ## Configuración
+ * La API key de Resend se obtiene automáticamente de Replit Connectors.
+ * No requiere configuración manual de credenciales.
+ * 
+ * @example
+ * import { sendWelcomeEmail } from './email';
+ * 
+ * // Enviar email de bienvenida
+ * await sendWelcomeEmail({
+ *   name: 'Juan Pérez',
+ *   email: 'juan@example.com'
+ * });
+ */
+
 import { Resend } from 'resend';
 
-let connectionSettings: any;
+// =============================================================================
+// CONFIGURACIÓN
+// =============================================================================
 
-async function getCredentials() {
+/**
+ * Almacena temporalmente la configuración de conexión
+ * Se obtiene de Replit Connectors
+ */
+let connectionSettings: {
+  settings: {
+    api_key: string;
+    from_email?: string;
+  };
+} | null = null;
+
+/**
+ * Email del administrador para recibir notificaciones
+ * Todas las alertas del sistema se envían a esta dirección
+ */
+const ADMIN_EMAIL = 'servicestaxx@gmail.com';
+
+/**
+ * Información de contacto de la empresa para plantillas
+ */
+const COMPANY_INFO = {
+  name: 'Highlight Tax Services',
+  phone: '+1 917-257-4554',
+  email: 'servicestaxx@gmail.com',
+  address: '84 West 188th Street, Apt 3C, Bronx, NY 10468',
+  year: new Date().getFullYear(),
+};
+
+// =============================================================================
+// UTILIDADES DE CONEXIÓN
+// =============================================================================
+
+/**
+ * Obtiene las credenciales de Resend desde Replit Connectors
+ * 
+ * Esta función autentica con el servicio de conectores de Replit
+ * para obtener la API key de Resend de forma segura.
+ * 
+ * @returns Objeto con apiKey y fromEmail
+ * @throws Error si no se pueden obtener las credenciales
+ * 
+ * @security Las credenciales se obtienen del entorno seguro de Replit
+ * @internal
+ */
+async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+  
+  // Construir token de autenticación según el contexto
   const xReplitToken = process.env.REPL_IDENTITY 
     ? 'repl ' + process.env.REPL_IDENTITY 
     : process.env.WEB_REPL_RENEWAL 
@@ -11,9 +95,10 @@ async function getCredentials() {
     : null;
 
   if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+    throw new Error('Token de autenticación de Replit no encontrado');
   }
 
+  // Obtener configuración del conector
   connectionSettings = await fetch(
     'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
     {
@@ -24,29 +109,139 @@ async function getCredentials() {
     }
   ).then(res => res.json()).then(data => data.items?.[0]);
 
-  if (!connectionSettings || (!connectionSettings.settings.api_key)) {
-    throw new Error('Resend not connected');
+  if (!connectionSettings || !connectionSettings.settings.api_key) {
+    throw new Error('Resend no está conectado. Configure la integración en Replit.');
   }
-  return {apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email};
-}
 
-async function getResendClient() {
-  const credentials = await getCredentials();
   return {
-    client: new Resend(credentials.apiKey),
-    fromEmail: credentials.fromEmail || 'noreply@highlighttaxservices.com'
+    apiKey: connectionSettings.settings.api_key,
+    fromEmail: connectionSettings.settings.from_email || `noreply@${COMPANY_INFO.name.toLowerCase().replace(/\s/g, '')}.com`
   };
 }
 
-const ADMIN_EMAIL = 'servicestaxx@gmail.com';
+/**
+ * Obtiene cliente de Resend configurado
+ * 
+ * Wrapper que inicializa el cliente con las credenciales
+ * obtenidas del entorno de Replit.
+ * 
+ * @returns Objeto con cliente Resend y email remitente
+ * @internal
+ */
+async function getResendClient(): Promise<{ client: Resend; fromEmail: string }> {
+  const credentials = await getCredentials();
+  return {
+    client: new Resend(credentials.apiKey),
+    fromEmail: credentials.fromEmail
+  };
+}
 
+// =============================================================================
+// PLANTILLAS DE EMAIL
+// =============================================================================
+
+/**
+ * Genera el header estándar de los emails
+ * 
+ * @returns HTML del header con logo y nombre de la empresa
+ */
+function getEmailHeader(): string {
+  return `
+    <div style="background: #0A3D62; padding: 30px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px;">${COMPANY_INFO.name}</h1>
+    </div>
+  `;
+}
+
+/**
+ * Genera el footer estándar de los emails
+ * 
+ * @returns HTML del footer con copyright
+ */
+function getEmailFooter(): string {
+  return `
+    <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666;">
+      <p>&copy; ${COMPANY_INFO.year} ${COMPANY_INFO.name}. All rights reserved.</p>
+    </div>
+  `;
+}
+
+/**
+ * Genera información de contacto para los emails
+ * 
+ * @returns HTML con información de contacto
+ */
+function getContactInfo(): string {
+  return `
+    <p>
+      <strong>Phone / Teléfono:</strong> ${COMPANY_INFO.phone}<br>
+      <strong>Email:</strong> ${COMPANY_INFO.email}<br>
+      <strong>Address / Dirección:</strong> ${COMPANY_INFO.address}
+    </p>
+  `;
+}
+
+/**
+ * Mapeo de categorías de documentos a etiquetas legibles
+ * Bilingüe inglés/español
+ */
+const CATEGORY_LABELS: Record<string, string> = {
+  'id_document': 'ID Document / Cédula',
+  'w2': 'W-2 Form',
+  'form_1099': '1099 Form',
+  'bank_statement': 'Bank Statement / Estado de Cuenta',
+  'receipt': 'Receipt / Recibo',
+  'previous_return': 'Previous Tax Return / Declaración Anterior',
+  'social_security': 'Social Security Card / Seguro Social',
+  'proof_of_address': 'Proof of Address / Comprobante de Domicilio',
+  'other': 'Other Document / Otro Documento'
+};
+
+/**
+ * Mapeo de estados de casos a etiquetas con colores
+ * Bilingüe inglés/español
+ */
+const STATUS_LABELS: Record<string, { en: string; es: string; color: string }> = {
+  'pending': { en: 'Pending', es: 'Pendiente', color: '#f39c12' },
+  'in_process': { en: 'In Process', es: 'En Proceso', color: '#3498db' },
+  'sent_to_irs': { en: 'Sent to IRS', es: 'Enviado al IRS', color: '#9b59b6' },
+  'approved': { en: 'Approved', es: 'Aprobado', color: '#2ECC71' },
+  'refund_issued': { en: 'Refund Issued', es: 'Reembolso Emitido', color: '#27ae60' },
+};
+
+// =============================================================================
+// FUNCIONES PÚBLICAS DE ENVÍO
+// =============================================================================
+
+/**
+ * Envía notificación de nuevo formulario de contacto al administrador
+ * 
+ * Cuando un visitante envía el formulario de contacto,
+ * esta función notifica al administrador con los detalles.
+ * 
+ * @param data - Datos del formulario de contacto
+ * @param data.name - Nombre del contacto
+ * @param data.email - Email del contacto
+ * @param data.phone - Teléfono opcional
+ * @param data.message - Mensaje del formulario
+ * @param data.service - Servicio de interés opcional
+ * 
+ * @returns true si se envió correctamente, false si hubo error
+ * 
+ * @example
+ * await sendContactFormNotification({
+ *   name: 'María García',
+ *   email: 'maria@example.com',
+ *   message: 'Necesito ayuda con mis impuestos'
+ * });
+ */
 export async function sendContactFormNotification(data: {
   name: string;
   email: string;
   phone?: string;
   message: string;
   service?: string;
-}) {
+}): Promise<boolean> {
   try {
     const { client, fromEmail } = await getResendClient();
     
@@ -66,21 +261,42 @@ export async function sendContactFormNotification(data: {
             <p style="background: white; padding: 15px; border-radius: 4px;">${data.message}</p>
           </div>
           <p style="color: #666; font-size: 12px; margin-top: 20px;">
-            This email was sent from the Highlight Tax Services website contact form.
+            This email was sent from the ${COMPANY_INFO.name} website contact form.
           </p>
         </div>
       `,
     });
     
-    console.log('Contact form notification email sent');
+    console.log('[email] Contact form notification sent');
     return true;
   } catch (error) {
-    console.error('Failed to send contact form notification:', error);
+    console.error('[email] Failed to send contact form notification:', error);
     return false;
   }
 }
 
-export async function sendWelcomeEmail(data: { name: string; email: string }) {
+/**
+ * Envía email de bienvenida a nuevos usuarios registrados
+ * 
+ * Se envía automáticamente cuando un usuario completa el registro.
+ * Incluye información sobre los próximos pasos y contacto.
+ * 
+ * @param data - Datos del nuevo usuario
+ * @param data.name - Nombre del usuario
+ * @param data.email - Email del usuario
+ * 
+ * @returns true si se envió correctamente, false si hubo error
+ * 
+ * @example
+ * await sendWelcomeEmail({
+ *   name: 'Juan Pérez',
+ *   email: 'juan@example.com'
+ * });
+ */
+export async function sendWelcomeEmail(data: { 
+  name: string; 
+  email: string 
+}): Promise<boolean> {
   try {
     const { client, fromEmail } = await getResendClient();
     
@@ -90,19 +306,17 @@ export async function sendWelcomeEmail(data: { name: string; email: string }) {
       subject: 'Bienvenido a Highlight Tax Services / Welcome to Highlight Tax Services',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #0A3D62; padding: 30px; text-align: center;">
-            <h1 style="color: white; margin: 0;">Highlight Tax Services</h1>
-          </div>
+          ${getEmailHeader()}
           
           <div style="padding: 30px;">
             <h2 style="color: #0A3D62;">Welcome / Bienvenido, ${data.name}!</h2>
             
-            <p>Thank you for registering with Highlight Tax Services. Your account has been created successfully.</p>
-            <p>Gracias por registrarse en Highlight Tax Services. Su cuenta ha sido creada exitosamente.</p>
+            <p>Thank you for registering with ${COMPANY_INFO.name}. Your account has been created successfully.</p>
+            <p>Gracias por registrarse en ${COMPANY_INFO.name}. Su cuenta ha sido creada exitosamente.</p>
             
             <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <h3 style="color: #2ECC71; margin-top: 0;">What's Next? / ¿Qué sigue?</h3>
-              <ul>
+              <ul style="line-height: 1.8;">
                 <li>Upload your tax documents through the client portal</li>
                 <li>Schedule an appointment with our tax preparers</li>
                 <li>Track your case status in real-time</li>
@@ -110,48 +324,44 @@ export async function sendWelcomeEmail(data: { name: string; email: string }) {
             </div>
             
             <p>If you have any questions, contact us at:</p>
-            <p>
-              <strong>Phone / Teléfono:</strong> +1 917-257-4554<br>
-              <strong>Email:</strong> servicestaxx@gmail.com<br>
-              <strong>Address / Dirección:</strong> 84 West 188th Street, Apt 3C, Bronx, NY 10468
-            </p>
+            ${getContactInfo()}
           </div>
           
-          <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666;">
-            <p>&copy; 2024 Highlight Tax Services. All rights reserved.</p>
-          </div>
+          ${getEmailFooter()}
         </div>
       `,
     });
     
-    console.log('Welcome email sent to:', data.email);
+    console.log('[email] Welcome email sent to:', data.email);
     return true;
   } catch (error) {
-    console.error('Failed to send welcome email:', error);
+    console.error('[email] Failed to send welcome email:', error);
     return false;
   }
 }
 
+/**
+ * Envía notificación de documento subido al administrador
+ * 
+ * Cuando un cliente sube un documento, esta función notifica
+ * al administrador para que pueda revisarlo.
+ * 
+ * @param data - Datos del documento subido
+ * @param data.clientName - Nombre del cliente
+ * @param data.clientEmail - Email del cliente
+ * @param data.fileName - Nombre del archivo
+ * @param data.category - Categoría del documento
+ * 
+ * @returns true si se envió correctamente, false si hubo error
+ */
 export async function sendDocumentUploadNotification(data: {
   clientName: string;
   clientEmail: string;
   fileName: string;
   category: string;
-}) {
+}): Promise<boolean> {
   try {
     const { client, fromEmail } = await getResendClient();
-    
-    const categoryLabels: Record<string, string> = {
-      'id_document': 'ID Document / Cédula',
-      'w2': 'W-2 Form',
-      'form_1099': '1099 Form',
-      'bank_statement': 'Bank Statement',
-      'receipt': 'Receipt',
-      'previous_return': 'Previous Tax Return',
-      'social_security': 'Social Security Card',
-      'proof_of_address': 'Proof of Address',
-      'other': 'Other Document'
-    };
     
     await client.emails.send({
       from: fromEmail,
@@ -164,7 +374,7 @@ export async function sendDocumentUploadNotification(data: {
             <p><strong>Client:</strong> ${data.clientName}</p>
             <p><strong>Email:</strong> ${data.clientEmail}</p>
             <p><strong>File Name:</strong> ${data.fileName}</p>
-            <p><strong>Category:</strong> ${categoryLabels[data.category] || data.category}</p>
+            <p><strong>Category:</strong> ${CATEGORY_LABELS[data.category] || data.category}</p>
           </div>
           <p style="color: #666; font-size: 12px; margin-top: 20px;">
             Log in to the admin dashboard to view and download this document.
@@ -173,14 +383,30 @@ export async function sendDocumentUploadNotification(data: {
       `,
     });
     
-    console.log('Document upload notification sent for:', data.fileName);
+    console.log('[email] Document upload notification sent for:', data.fileName);
     return true;
   } catch (error) {
-    console.error('Failed to send document upload notification:', error);
+    console.error('[email] Failed to send document upload notification:', error);
     return false;
   }
 }
 
+/**
+ * Envía notificación de actualización de estado de caso al cliente
+ * 
+ * Cuando el estado de un caso cambia, esta función notifica
+ * al cliente con los detalles de la actualización.
+ * 
+ * @param data - Datos de la actualización
+ * @param data.clientName - Nombre del cliente
+ * @param data.clientEmail - Email del cliente
+ * @param data.caseId - ID del caso
+ * @param data.filingYear - Año fiscal del caso
+ * @param data.newStatus - Nuevo estado del caso
+ * @param data.notes - Notas adicionales opcionales
+ * 
+ * @returns true si se envió correctamente, false si hubo error
+ */
 export async function sendCaseStatusUpdate(data: {
   clientName: string;
   clientEmail: string;
@@ -188,19 +414,15 @@ export async function sendCaseStatusUpdate(data: {
   filingYear: number;
   newStatus: string;
   notes?: string;
-}) {
+}): Promise<boolean> {
   try {
     const { client, fromEmail } = await getResendClient();
     
-    const statusLabels: Record<string, { en: string; es: string; color: string }> = {
-      'pending': { en: 'Pending', es: 'Pendiente', color: '#f39c12' },
-      'in_process': { en: 'In Process', es: 'En Proceso', color: '#3498db' },
-      'sent_to_irs': { en: 'Sent to IRS', es: 'Enviado al IRS', color: '#9b59b6' },
-      'approved': { en: 'Approved', es: 'Aprobado', color: '#2ECC71' },
-      'refund_issued': { en: 'Refund Issued', es: 'Reembolso Emitido', color: '#27ae60' },
+    const status = STATUS_LABELS[data.newStatus] || { 
+      en: data.newStatus, 
+      es: data.newStatus, 
+      color: '#666' 
     };
-    
-    const status = statusLabels[data.newStatus] || { en: data.newStatus, es: data.newStatus, color: '#666' };
     
     await client.emails.send({
       from: fromEmail,
@@ -208,9 +430,7 @@ export async function sendCaseStatusUpdate(data: {
       subject: `Case Status Update - ${status.en} / Actualización de Caso - ${status.es}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #0A3D62; padding: 30px; text-align: center;">
-            <h1 style="color: white; margin: 0;">Highlight Tax Services</h1>
-          </div>
+          ${getEmailHeader()}
           
           <div style="padding: 30px;">
             <h2 style="color: #0A3D62;">Case Status Update / Actualización de Estado</h2>
@@ -233,36 +453,47 @@ export async function sendCaseStatusUpdate(data: {
             <p>Inicie sesión en su portal de cliente para ver más detalles sobre su caso.</p>
             
             <p style="margin-top: 30px;">Questions? Contact us:</p>
-            <p>
-              <strong>Phone / Teléfono:</strong> +1 917-257-4554<br>
-              <strong>Email:</strong> servicestaxx@gmail.com
-            </p>
+            ${getContactInfo()}
           </div>
           
-          <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666;">
-            <p>&copy; 2024 Highlight Tax Services. All rights reserved.</p>
-          </div>
+          ${getEmailFooter()}
         </div>
       `,
     });
     
-    console.log('Case status update email sent to:', data.clientEmail);
+    console.log('[email] Case status update sent to:', data.clientEmail);
     return true;
   } catch (error) {
-    console.error('Failed to send case status update email:', error);
+    console.error('[email] Failed to send case status update:', error);
     return false;
   }
 }
 
+/**
+ * Envía confirmación de cita al cliente y notificación al administrador
+ * 
+ * Cuando se agenda una cita, esta función:
+ * 1. Envía confirmación al cliente con detalles de la cita
+ * 2. Notifica al administrador de la nueva cita
+ * 
+ * @param data - Datos de la cita
+ * @param data.clientName - Nombre del cliente
+ * @param data.clientEmail - Email del cliente
+ * @param data.appointmentDate - Fecha y hora de la cita
+ * @param data.notes - Notas de la cita opcionales
+ * 
+ * @returns true si se enviaron los emails correctamente, false si hubo error
+ */
 export async function sendAppointmentConfirmation(data: {
   clientName: string;
   clientEmail: string;
   appointmentDate: Date;
   notes?: string;
-}) {
+}): Promise<boolean> {
   try {
     const { client, fromEmail } = await getResendClient();
     
+    // Formatear fechas en ambos idiomas
     const dateOptions: Intl.DateTimeFormatOptions = {
       weekday: 'long',
       year: 'numeric',
@@ -275,15 +506,14 @@ export async function sendAppointmentConfirmation(data: {
     const formattedDateEn = data.appointmentDate.toLocaleDateString('en-US', dateOptions);
     const formattedDateEs = data.appointmentDate.toLocaleDateString('es-ES', dateOptions);
     
+    // Email al cliente
     await client.emails.send({
       from: fromEmail,
       to: data.clientEmail,
       subject: 'Appointment Confirmation / Confirmación de Cita - Highlight Tax Services',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <div style="background: #0A3D62; padding: 30px; text-align: center;">
-            <h1 style="color: white; margin: 0;">Highlight Tax Services</h1>
-          </div>
+          ${getEmailHeader()}
           
           <div style="padding: 30px;">
             <h2 style="color: #2ECC71;">Appointment Confirmed / Cita Confirmada!</h2>
@@ -306,27 +536,22 @@ export async function sendAppointmentConfirmation(data: {
             <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0;">
               <h3 style="color: #2ECC71; margin-top: 0;">Office Location / Ubicación</h3>
               <p style="margin-bottom: 0;">
-                84 West 188th Street, Apt 3C<br>
-                Bronx, NY 10468
+                ${COMPANY_INFO.address}
               </p>
             </div>
             
             <p>If you need to reschedule, please contact us at least 24 hours before your appointment.</p>
             <p>Si necesita reprogramar, contáctenos al menos 24 horas antes de su cita.</p>
             
-            <p>
-              <strong>Phone / Teléfono:</strong> +1 917-257-4554<br>
-              <strong>Email:</strong> servicestaxx@gmail.com
-            </p>
+            ${getContactInfo()}
           </div>
           
-          <div style="background: #f5f5f5; padding: 20px; text-align: center; font-size: 12px; color: #666;">
-            <p>&copy; 2024 Highlight Tax Services. All rights reserved.</p>
-          </div>
+          ${getEmailFooter()}
         </div>
       `,
     });
     
+    // Email al administrador
     await client.emails.send({
       from: fromEmail,
       to: ADMIN_EMAIL,
@@ -344,10 +569,10 @@ export async function sendAppointmentConfirmation(data: {
       `,
     });
     
-    console.log('Appointment confirmation emails sent');
+    console.log('[email] Appointment confirmation emails sent');
     return true;
   } catch (error) {
-    console.error('Failed to send appointment confirmation:', error);
+    console.error('[email] Failed to send appointment confirmation:', error);
     return false;
   }
 }
