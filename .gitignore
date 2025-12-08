@@ -1,6 +1,79 @@
+# Dependencies
 node_modules
+
+# Build output
 dist
-.DS_Store
 server/public
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Vite temp files
 vite.config.ts.*
+
+# Compressed files
 *.tar.gz
+
+# Environment files (NEVER commit these!)
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+
+# Uploaded files (contain sensitive client documents!)
+uploads/
+/uploads
+*.upload
+
+# Database backups (contain sensitive data!)
+*.sql
+*.dump
+*.backup
+backup/
+backups/
+
+# Logs (may contain sensitive information)
+logs/
+*.log
+npm-debug.log*
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Replit specific (not needed for production)
+.replit
+replit.nix
+.upm/
+.cache/
+.config/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Test coverage
+coverage/
+
+# Session files
+sessions/
+*.session
+
+# SSL certificates (if any)
+*.pem
+*.key
+*.crt
+*.p12
+
+# Sensitive exports
+exports/
+*.csv
+*.xlsx
+
+# Scripts used for deployment (contain internal logic)
+scripts/
