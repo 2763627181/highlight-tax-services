@@ -42,7 +42,7 @@ import { Resend } from 'resend';
 
 /**
  * Almacena temporalmente la configuración de conexión
- * Se obtiene de Replit Connectors
+ * Se obtiene de Replit Connectors o de variables de entorno
  */
 let connectionSettings: {
   settings: {
@@ -56,6 +56,11 @@ let connectionSettings: {
  * Todas las alertas del sistema se envían a esta dirección
  */
 const ADMIN_EMAIL = 'servicestaxx@gmail.com';
+
+/**
+ * Email remitente por defecto (dominio verificado en Resend)
+ */
+const DEFAULT_FROM_EMAIL = 'noreply@highlighttax.com';
 
 /**
  * Información de contacto de la empresa para plantillas
@@ -73,18 +78,27 @@ const COMPANY_INFO = {
 // =============================================================================
 
 /**
- * Obtiene las credenciales de Resend desde Replit Connectors
+ * Obtiene las credenciales de Resend desde variables de entorno o Replit Connectors
  * 
- * Esta función autentica con el servicio de conectores de Replit
- * para obtener la API key de Resend de forma segura.
+ * Esta función primero intenta obtener la API key desde RESEND_API_KEY,
+ * y si no está disponible, intenta usar Replit Connectors.
  * 
  * @returns Objeto con apiKey y fromEmail
  * @throws Error si no se pueden obtener las credenciales
  * 
- * @security Las credenciales se obtienen del entorno seguro de Replit
+ * @security Las credenciales se obtienen del entorno seguro
  * @internal
  */
 async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> {
+  // Opción 1: Usar variable de entorno directa (para Vercel y otros hosting)
+  if (process.env.RESEND_API_KEY) {
+    return {
+      apiKey: process.env.RESEND_API_KEY,
+      fromEmail: process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL
+    };
+  }
+
+  // Opción 2: Usar Replit Connectors
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   
   // Construir token de autenticación según el contexto
@@ -94,29 +108,33 @@ async function getCredentials(): Promise<{ apiKey: string; fromEmail: string }> 
     ? 'depl ' + process.env.WEB_REPL_RENEWAL 
     : null;
 
-  if (!xReplitToken) {
-    throw new Error('Token de autenticación de Replit no encontrado');
+  if (!xReplitToken || !hostname) {
+    throw new Error('RESEND_API_KEY no configurada. Agregue la variable de entorno.');
   }
 
   // Obtener configuración del conector
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
+  try {
+    connectionSettings = await fetch(
+      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=resend',
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X_REPLIT_TOKEN': xReplitToken
+        }
       }
+    ).then(res => res.json()).then(data => data.items?.[0]);
+
+    if (!connectionSettings || !connectionSettings.settings.api_key) {
+      throw new Error('Resend no está conectado. Configure la integración en Replit o agregue RESEND_API_KEY.');
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
 
-  if (!connectionSettings || !connectionSettings.settings.api_key) {
-    throw new Error('Resend no está conectado. Configure la integración en Replit.');
+    return {
+      apiKey: connectionSettings.settings.api_key,
+      fromEmail: connectionSettings.settings.from_email || DEFAULT_FROM_EMAIL
+    };
+  } catch (error) {
+    throw new Error('No se pudo obtener la API key de Resend. Configure RESEND_API_KEY como variable de entorno.');
   }
-
-  return {
-    apiKey: connectionSettings.settings.api_key,
-    fromEmail: connectionSettings.settings.from_email || `noreply@${COMPANY_INFO.name.toLowerCase().replace(/\s/g, '')}.com`
-  };
 }
 
 /**
