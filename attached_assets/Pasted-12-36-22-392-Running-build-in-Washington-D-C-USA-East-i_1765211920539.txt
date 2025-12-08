@@ -1,0 +1,40 @@
+12:36:22.392 Running build in Washington, D.C., USA (East) – iad1
+12:36:22.393 Build machine configuration: 2 cores, 8 GB
+12:36:22.770 Cloning github.com/2763627181/highlight-tax-services (Branch: main, Commit: 47b85ab)
+12:36:22.780 Previous build caches not available.
+12:36:23.576 Cloning completed: 803.000ms
+12:36:25.736 Running "vercel build"
+12:36:26.179 Vercel CLI 49.1.2
+12:36:26.793 Installing dependencies...
+12:36:31.813 npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+12:36:31.843 npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+12:36:37.589 
+12:36:37.590 added 579 packages in 11s
+12:36:37.591 
+12:36:37.591 82 packages are looking for funding
+12:36:37.592   run `npm fund` for details
+12:36:37.750 
+12:36:37.750 > rest-express@1.0.0 build
+12:36:37.751 > tsx script/build.ts
+12:36:37.751 
+12:36:42.106 
+12:36:42.107 node:internal/modules/run_main:107
+12:36:42.108     triggerUncaughtException(
+12:36:42.108     ^
+12:36:42.108 Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/vercel/path0/script/build.ts' imported from /vercel/path0/
+12:36:42.108     at finalizeResolution (node:internal/modules/esm/resolve:274:11)
+12:36:42.109     at moduleResolve (node:internal/modules/esm/resolve:864:10)
+12:36:42.109     at defaultResolve (node:internal/modules/esm/resolve:990:11)
+12:36:42.109     at nextResolve (node:internal/modules/esm/hooks:785:28)
+12:36:42.109     at resolveBase (file:///vercel/path0/node_modules/tsx/dist/esm/index.mjs?1765211801964:2:3744)
+12:36:42.109     at resolveDirectory (file:///vercel/path0/node_modules/tsx/dist/esm/index.mjs?1765211801964:2:4243)
+12:36:42.110     at resolveTsPaths (file:///vercel/path0/node_modules/tsx/dist/esm/index.mjs?1765211801964:2:4984)
+12:36:42.110     at resolve (file:///vercel/path0/node_modules/tsx/dist/esm/index.mjs?1765211801964:2:5361)
+12:36:42.110     at nextResolve (node:internal/modules/esm/hooks:785:28)
+12:36:42.110     at AsyncLoaderHooksOnLoaderHookWorker.resolve (node:internal/modules/esm/hooks:271:30) {
+12:36:42.110   code: 'ERR_MODULE_NOT_FOUND',
+12:36:42.110   url: 'file:///vercel/path0/script/build.ts'
+12:36:42.111 }
+12:36:42.111 
+12:36:42.111 Node.js v24.11.1
+12:36:42.126 Error: Command "npm run build" exited with 1
