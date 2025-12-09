@@ -28,7 +28,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
-import { insertContactSubmissionSchema, users } from "@shared/schema";
+import { insertContactSubmissionSchema, users } from "../shared/schema";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 import bcrypt from "bcrypt";

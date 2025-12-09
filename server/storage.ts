@@ -64,7 +64,7 @@ import {
   type InsertAuthIdentity,
   type PasswordResetToken,
   passwordResetTokens,
-} from "@shared/schema";
+} from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, count, sum } from "drizzle-orm";
 
