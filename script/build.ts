@@ -1,9 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, mkdir } from "fs/promises";
 
-// server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times
 const allowlist = [
   "@google/generative-ai",
   "axios",
@@ -15,6 +13,8 @@ const allowlist = [
   "express",
   "express-rate-limit",
   "express-session",
+  "helmet",
+  "hpp",
   "jsonwebtoken",
   "memorystore",
   "multer",
@@ -24,12 +24,17 @@ const allowlist = [
   "passport",
   "passport-local",
   "pg",
+  "resend",
+  "serverless-http",
   "stripe",
   "uuid",
   "ws",
   "xlsx",
   "zod",
   "zod-validation-error",
+  "bcrypt",
+  "cookie-parser",
+  "openid-client",
 ];
 
 async function buildAll() {
@@ -59,6 +64,24 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  console.log("building Vercel API handler...");
+  await mkdir("dist/api", { recursive: true });
+  await esbuild({
+    entryPoints: ["api/index.ts"],
+    platform: "node",
+    bundle: true,
+    format: "esm",
+    outfile: "dist/api/index.mjs",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+    minify: true,
+    external: externals,
+    logLevel: "info",
+  });
+
+  console.log("build complete!");
 }
 
 buildAll().catch((err) => {
