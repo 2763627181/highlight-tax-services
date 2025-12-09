@@ -81,7 +81,7 @@ interface RegisterData {
   phone?: string;
 }
 
-interface OAuthLoginData {
+export interface OAuthLoginData {
   email: string;
   name: string;
   provider: string;
