@@ -13,6 +13,7 @@ import { Footer } from "@/components/footer";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n";
+import { signInWithOAuth, type OAuthProvider } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -50,6 +51,7 @@ export default function Portal() {
   const { language } = useI18n();
   const [activeTab, setActiveTab] = useState<string>("login");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
 
   const content = {
     en: {
@@ -352,6 +354,20 @@ export default function Portal() {
     }
   };
 
+  const handleOAuthLogin = async (provider: OAuthProvider) => {
+    setIsOAuthLoading(true);
+    try {
+      await signInWithOAuth(provider);
+    } catch (error) {
+      toast({
+        title: currentContent.errorTitle,
+        description: error instanceof Error ? error.message : currentContent.loginError,
+        variant: "destructive",
+      });
+      setIsOAuthLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -452,33 +468,33 @@ export default function Portal() {
                   </div>
 
                   <div className="grid grid-cols-3 gap-3">
-                    <a href="/api/login" className="block">
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        data-testid="button-google-login"
-                      >
-                        <SiGoogle className="h-4 w-4" />
-                      </Button>
-                    </a>
-                    <a href="/api/login" className="block">
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        data-testid="button-github-login"
-                      >
-                        <SiGithub className="h-4 w-4" />
-                      </Button>
-                    </a>
-                    <a href="/api/login" className="block">
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        data-testid="button-apple-login"
-                      >
-                        <SiApple className="h-4 w-4" />
-                      </Button>
-                    </a>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => handleOAuthLogin('google')}
+                      disabled={isOAuthLoading}
+                      data-testid="button-google-login"
+                    >
+                      <SiGoogle className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => handleOAuthLogin('github')}
+                      disabled={isOAuthLoading}
+                      data-testid="button-github-login"
+                    >
+                      <SiGithub className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => handleOAuthLogin('apple')}
+                      disabled={isOAuthLoading}
+                      data-testid="button-apple-login"
+                    >
+                      <SiApple className="h-4 w-4" />
+                    </Button>
                   </div>
                 </TabsContent>
 
