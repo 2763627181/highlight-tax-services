@@ -20,9 +20,9 @@ export function AboutSection() {
   const content = {
     en: {
       title: "About Us",
-      description: "Highlight Tax Services provides reliable tax preparation services for employees, business owners and self-employed individuals throughout the United States. With over 10 years of experience, we guarantee clear, secure processes focused on maximizing your benefits.",
+      description: "Highlight Tax Services provides reliable tax preparation services for employees, business owners and self-employed individuals throughout the United States. With over 18 years of experience, we guarantee clear, secure processes focused on maximizing your benefits.",
       highlights: [
-        "10+ years of experience",
+        "18+ years of experience",
         "Personalized service",
         "Absolute confidentiality",
         "Multilingual support",
@@ -40,9 +40,9 @@ export function AboutSection() {
     },
     es: {
       title: "Sobre Nosotros",
-      description: "Highlight Tax Services brinda servicios confiables de preparación de impuestos para empleados, dueños de negocios y trabajadores independientes en todo Estados Unidos. Con más de 10 años de experiencia, garantizamos procesos claros, seguros y orientados a maximizar tus beneficios.",
+      description: "Highlight Tax Services brinda servicios confiables de preparación de impuestos para empleados, dueños de negocios y trabajadores independientes en todo Estados Unidos. Con más de 18 años de experiencia, garantizamos procesos claros, seguros y orientados a maximizar tus beneficios.",
       highlights: [
-        "10+ años de experiencia",
+        "18+ años de experiencia",
         "Servicio personalizado",
         "Confidencialidad absoluta",
         "Atención multilingüe",
@@ -60,9 +60,9 @@ export function AboutSection() {
     },
     fr: {
       title: "À Propos de Nous",
-      description: "Highlight Tax Services fournit des services fiables de préparation fiscale pour les employés, propriétaires d'entreprise et travailleurs indépendants à travers les États-Unis. Avec plus de 10 ans d'expérience, nous garantissons des processus clairs et sécurisés axés sur la maximisation de vos avantages.",
+      description: "Highlight Tax Services fournit des services fiables de préparation fiscale pour les employés, propriétaires d'entreprise et travailleurs indépendants à travers les États-Unis. Avec plus de 18 ans d'expérience, nous garantissons des processus clairs et sécurisés axés sur la maximisation de vos avantages.",
       highlights: [
-        "10+ ans d'expérience",
+        "18+ ans d'expérience",
         "Service personnalisé",
         "Confidentialité absolue",
         "Support multilingue",
@@ -80,9 +80,9 @@ export function AboutSection() {
     },
     pt: {
       title: "Sobre Nós",
-      description: "A Highlight Tax Services oferece serviços confiáveis de preparação de impostos para funcionários, donos de negócios e autônomos em todos os Estados Unidos. Com mais de 10 anos de experiência, garantimos processos claros e seguros focados em maximizar seus benefícios.",
+      description: "A Highlight Tax Services oferece serviços confiáveis de preparação de impostos para funcionários, donos de negócios e autônomos em todos os Estados Unidos. Com mais de 18 anos de experiência, garantimos processos claros e seguros focados em maximizar seus benefícios.",
       highlights: [
-        "10+ anos de experiência",
+        "18+ anos de experiência",
         "Serviço personalizado",
         "Confidencialidade absoluta",
         "Suporte multilíngue",
@@ -100,9 +100,9 @@ export function AboutSection() {
     },
     zh: {
       title: "关于我们",
-      description: "Highlight Tax Services为全美的员工、企业主和自雇人士提供可靠的税务准备服务。凭借超过10年的经验，我们保证清晰、安全的流程，专注于最大化您的利益。",
+      description: "Highlight Tax Services为全美的员工、企业主和自雇人士提供可靠的税务准备服务。凭借超过18年的经验，我们保证清晰、安全的流程，专注于最大化您的利益。",
       highlights: [
-        "10+年经验",
+        "18+年经验",
         "个性化服务",
         "绝对保密",
         "多语言支持",
@@ -120,9 +120,9 @@ export function AboutSection() {
     },
     ht: {
       title: "Sou Nou",
-      description: "Highlight Tax Services bay sèvis preparasyon taks fyab pou anplwaye, pwopriyetè biznis ak travayè endepandan nan tout Etazini. Avèk plis pase 10 ane eksperyans, nou garanti pwosesis klè, sekirize ak oryante pou maksimize benefis ou yo.",
+      description: "Highlight Tax Services bay sèvis preparasyon taks fyab pou anplwaye, pwopriyetè biznis ak travayè endepandan nan tout Etazini. Avèk plis pase 18 ane eksperyans, nou garanti pwosesis klè, sekirize ak oryante pou maksimize benefis ou yo.",
       highlights: [
-        "10+ ane eksperyans",
+        "18+ ane eksperyans",
         "Sèvis pèsonalize",
         "Konfidansyalite absoli",
         "Sipò milti-lang",
