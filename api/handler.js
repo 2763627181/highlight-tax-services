@@ -30,825 +30,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// node_modules/serverless-http/lib/finish.js
-var require_finish = __commonJS({
-  "node_modules/serverless-http/lib/finish.js"(exports2, module2) {
-    "use strict";
-    module2.exports = async function finish(item, transform, ...details) {
-      await new Promise((resolve, reject) => {
-        if (item.finished || item.complete) {
-          resolve();
-          return;
-        }
-        let finished = false;
-        function done(err) {
-          if (finished) {
-            return;
-          }
-          finished = true;
-          item.removeListener("error", done);
-          item.removeListener("end", done);
-          item.removeListener("finish", done);
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        }
-        item.once("error", done);
-        item.once("end", done);
-        item.once("finish", done);
-      });
-      if (typeof transform === "function") {
-        await transform(item, ...details);
-      } else if (typeof transform === "object" && transform !== null) {
-        Object.assign(item, transform);
-      }
-      return item;
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/response.js
-var require_response = __commonJS({
-  "node_modules/serverless-http/lib/response.js"(exports2, module2) {
-    "use strict";
-    var http = require("http");
-    var headerEnd = "\r\n\r\n";
-    var BODY = Symbol();
-    var HEADERS = Symbol();
-    function getString(data) {
-      if (Buffer.isBuffer(data)) {
-        return data.toString("utf8");
-      } else if (typeof data === "string") {
-        return data;
-      } else {
-        throw new Error(`response.write() of unexpected type: ${typeof data}`);
-      }
-    }
-    function addData(stream, data) {
-      if (Buffer.isBuffer(data) || typeof data === "string" || data instanceof Uint8Array) {
-        stream[BODY].push(Buffer.from(data));
-      } else {
-        throw new Error(`response.write() of unexpected type: ${typeof data}`);
-      }
-    }
-    module2.exports = class ServerlessResponse extends http.ServerResponse {
-      static from(res) {
-        const response = new ServerlessResponse(res);
-        response.statusCode = res.statusCode;
-        response[HEADERS] = res.headers;
-        response[BODY] = [Buffer.from(res.body)];
-        response.end();
-        return response;
-      }
-      static body(res) {
-        return Buffer.concat(res[BODY]);
-      }
-      static headers(res) {
-        const headers2 = typeof res.getHeaders === "function" ? res.getHeaders() : res._headers;
-        return Object.assign(headers2, res[HEADERS]);
-      }
-      get headers() {
-        return this[HEADERS];
-      }
-      setHeader(key, value) {
-        if (this._wroteHeader) {
-          this[HEADERS][key] = value;
-        } else {
-          super.setHeader(key, value);
-        }
-      }
-      writeHead(statusCode, reason, obj) {
-        const headers2 = typeof reason === "string" ? obj : reason;
-        for (const name2 in headers2) {
-          this.setHeader(name2, headers2[name2]);
-          if (!this._wroteHeader) {
-            break;
-          }
-        }
-        super.writeHead(statusCode, reason, obj);
-      }
-      constructor({ method }) {
-        super({ method });
-        this[BODY] = [];
-        this[HEADERS] = {};
-        this.useChunkedEncodingByDefault = false;
-        this.chunkedEncoding = false;
-        this._header = "";
-        this.assignSocket({
-          _writableState: {},
-          writable: true,
-          on: Function.prototype,
-          removeListener: Function.prototype,
-          destroy: Function.prototype,
-          cork: Function.prototype,
-          uncork: Function.prototype,
-          write: (data, encoding, cb) => {
-            if (typeof encoding === "function") {
-              cb = encoding;
-              encoding = null;
-            }
-            if (this._header === "" || this._wroteHeader) {
-              addData(this, data);
-            } else {
-              const string = getString(data);
-              const index2 = string.indexOf(headerEnd);
-              if (index2 !== -1) {
-                const remainder = string.slice(index2 + headerEnd.length);
-                if (remainder) {
-                  addData(this, remainder);
-                }
-                this._wroteHeader = true;
-              }
-            }
-            if (typeof cb === "function") {
-              cb();
-            }
-            return true;
-          }
-        });
-      }
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/framework/get-framework.js
-var require_get_framework = __commonJS({
-  "node_modules/serverless-http/lib/framework/get-framework.js"(exports2, module2) {
-    "use strict";
-    var http = require("http");
-    var Response4 = require_response();
-    function common(cb) {
-      return (request) => {
-        const response = new Response4(request);
-        cb(request, response);
-        return response;
-      };
-    }
-    module2.exports = function getFramework(app2) {
-      if (app2 instanceof http.Server) {
-        return (request) => {
-          const response = new Response4(request);
-          app2.emit("request", request, response);
-          return response;
-        };
-      }
-      if (typeof app2.callback === "function") {
-        return common(app2.callback());
-      }
-      if (typeof app2.handle === "function") {
-        return common((request, response) => {
-          app2.handle(request, response);
-        });
-      }
-      if (typeof app2.handler === "function") {
-        return common((request, response) => {
-          app2.handler(request, response);
-        });
-      }
-      if (typeof app2._onRequest === "function") {
-        return common((request, response) => {
-          app2._onRequest(request, response);
-        });
-      }
-      if (typeof app2 === "function") {
-        return common(app2);
-      }
-      if (app2.router && typeof app2.router.route == "function") {
-        return common((req, res) => {
-          const { url, method, headers: headers2, body } = req;
-          app2.router.route({ url, method, headers: headers2, body }, res);
-        });
-      }
-      if (app2._core && typeof app2._core._dispatch === "function") {
-        return common(app2._core._dispatch({
-          app: app2
-        }));
-      }
-      if (typeof app2.inject === "function") {
-        return async (request) => {
-          const { method, url, headers: headers2, body } = request;
-          const res = await app2.inject({ method, url, headers: headers2, payload: body });
-          return Response4.from(res);
-        };
-      }
-      if (typeof app2.main === "function") {
-        return common(app2.main);
-      }
-      throw new Error("Unsupported framework");
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/aws/clean-up-event.js
-var require_clean_up_event = __commonJS({
-  "node_modules/serverless-http/lib/provider/aws/clean-up-event.js"(exports2, module2) {
-    "use strict";
-    function removeBasePath(path3 = "/", basePath) {
-      if (basePath) {
-        const basePathIndex = path3.indexOf(basePath);
-        if (basePathIndex > -1) {
-          return path3.substr(basePathIndex + basePath.length) || "/";
-        }
-      }
-      return path3;
-    }
-    function isString(value) {
-      return typeof value === "string" || value instanceof String;
-    }
-    function specialDecodeURIComponent(value) {
-      if (!isString(value)) {
-        return value;
-      }
-      let decoded;
-      try {
-        decoded = decodeURIComponent(value.replace(/[+]/g, "%20"));
-      } catch (err) {
-        decoded = value.replace(/[+]/g, "%20");
-      }
-      return decoded;
-    }
-    function recursiveURLDecode(value) {
-      if (isString(value)) {
-        return specialDecodeURIComponent(value);
-      } else if (Array.isArray(value)) {
-        const decodedArray = [];
-        for (let index2 in value) {
-          decodedArray.push(recursiveURLDecode(value[index2]));
-        }
-        return decodedArray;
-      } else if (value instanceof Object) {
-        const decodedObject = {};
-        for (let key of Object.keys(value)) {
-          decodedObject[specialDecodeURIComponent(key)] = recursiveURLDecode(value[key]);
-        }
-        return decodedObject;
-      }
-      return value;
-    }
-    module2.exports = function cleanupEvent(evt, options) {
-      const event = evt || {};
-      event.requestContext = event.requestContext || {};
-      event.body = event.body || "";
-      event.headers = event.headers || {};
-      if ("elb" in event.requestContext) {
-        if (event.multiValueQueryStringParameters) {
-          event.multiValueQueryStringParameters = recursiveURLDecode(event.multiValueQueryStringParameters);
-        }
-        if (event.queryStringParameters) {
-          event.queryStringParameters = recursiveURLDecode(event.queryStringParameters);
-        }
-      }
-      if (event.version === "2.0") {
-        event.requestContext.authorizer = event.requestContext.authorizer || {};
-        event.requestContext.http.method = event.requestContext.http.method || "GET";
-        event.rawPath = removeBasePath(event.requestPath || event.rawPath, options.basePath);
-      } else {
-        event.requestContext.identity = event.requestContext.identity || {};
-        event.httpMethod = event.httpMethod || "GET";
-        event.path = removeBasePath(event.requestPath || event.path, options.basePath);
-      }
-      return event;
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/request.js
-var require_request = __commonJS({
-  "node_modules/serverless-http/lib/request.js"(exports2, module2) {
-    "use strict";
-    var http = require("http");
-    var { PassThrough } = require("stream");
-    module2.exports = class ServerlessRequest extends http.IncomingMessage {
-      constructor({ method, url, headers: headers2, body, remoteAddress }) {
-        const socket = new PassThrough();
-        socket.encrypted = true;
-        socket.remoteAddress = remoteAddress;
-        socket.address = () => ({ port: 443 });
-        super(socket);
-        if (typeof headers2["content-length"] === "undefined") {
-          headers2["content-length"] = Buffer.byteLength(body);
-        }
-        Object.assign(this, {
-          ip: remoteAddress,
-          complete: true,
-          httpVersion: "1.1",
-          httpVersionMajor: "1",
-          httpVersionMinor: "1",
-          method,
-          headers: headers2,
-          body,
-          url
-        });
-        this._read = () => {
-          if (typeof body !== "undefined" && body !== null) {
-            this.push(body);
-          }
-          this.push(null);
-        };
-        if (!body || Buffer.byteLength(body) === 0) {
-          setImmediate(() => this.emit("end"));
-        }
-      }
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/aws/create-request.js
-var require_create_request = __commonJS({
-  "node_modules/serverless-http/lib/provider/aws/create-request.js"(exports2, module2) {
-    "use strict";
-    var URL2 = require("url");
-    var Request2 = require_request();
-    function requestMethod(event) {
-      if (event.version === "2.0") {
-        return event.requestContext.http.method;
-      }
-      return event.httpMethod;
-    }
-    function requestRemoteAddress(event) {
-      if (event.version === "2.0") {
-        return event.requestContext.http.sourceIp;
-      }
-      return event.requestContext.identity.sourceIp;
-    }
-    function requestHeaders(event) {
-      const initialHeader = event.version === "2.0" && Array.isArray(event.cookies) ? { cookie: event.cookies.join("; ") } : {};
-      if (event.multiValueHeaders) {
-        Object.keys(event.multiValueHeaders).reduce((headers2, key) => {
-          headers2[key.toLowerCase()] = event.multiValueHeaders[key].join(", ");
-          return headers2;
-        }, initialHeader);
-      }
-      return Object.keys(event.headers).reduce((headers2, key) => {
-        headers2[key.toLowerCase()] = event.headers[key];
-        return headers2;
-      }, initialHeader);
-    }
-    function requestBody(event) {
-      const type = typeof event.body;
-      if (Buffer.isBuffer(event.body)) {
-        return event.body;
-      } else if (type === "string") {
-        return Buffer.from(event.body, event.isBase64Encoded ? "base64" : "utf8");
-      } else if (type === "object") {
-        return Buffer.from(JSON.stringify(event.body));
-      }
-      throw new Error(`Unexpected event.body type: ${typeof event.body}`);
-    }
-    function requestUrl(event) {
-      if (event.version === "2.0") {
-        return URL2.format({
-          pathname: event.rawPath,
-          search: event.rawQueryString
-        });
-      }
-      const query = event.multiValueQueryStringParameters || {};
-      if (event.queryStringParameters) {
-        Object.keys(event.queryStringParameters).forEach((key) => {
-          if (Array.isArray(query[key])) {
-            if (!query[key].includes(event.queryStringParameters[key])) {
-              query[key].push(event.queryStringParameters[key]);
-            }
-          } else {
-            query[key] = [event.queryStringParameters[key]];
-          }
-        });
-      }
-      return URL2.format({
-        pathname: event.path,
-        query
-      });
-    }
-    module2.exports = (event, context, options) => {
-      const method = requestMethod(event);
-      const remoteAddress = requestRemoteAddress(event);
-      const headers2 = requestHeaders(event);
-      const body = requestBody(event);
-      const url = requestUrl(event);
-      if (typeof options.requestId === "string" && options.requestId.length > 0) {
-        const header = options.requestId.toLowerCase();
-        const requestId = headers2[header] || event.requestContext.requestId;
-        if (requestId) {
-          headers2[header] = requestId;
-        }
-      }
-      const req = new Request2({
-        method,
-        headers: headers2,
-        body,
-        remoteAddress,
-        url
-      });
-      req.requestContext = event.requestContext;
-      req.apiGateway = {
-        event,
-        context
-      };
-      return req;
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/aws/is-binary.js
-var require_is_binary = __commonJS({
-  "node_modules/serverless-http/lib/provider/aws/is-binary.js"(exports2, module2) {
-    "use strict";
-    var BINARY_ENCODINGS = ["gzip", "deflate", "br"];
-    var BINARY_CONTENT_TYPES = (process.env.BINARY_CONTENT_TYPES || "").split(",");
-    function isBinaryEncoding(headers2) {
-      const contentEncoding = headers2["content-encoding"];
-      if (typeof contentEncoding === "string") {
-        return contentEncoding.split(",").some(
-          (value) => BINARY_ENCODINGS.some((binaryEncoding) => value.indexOf(binaryEncoding) !== -1)
-        );
-      }
-    }
-    function isBinaryContent(headers2, options) {
-      const contentTypes = [].concat(
-        options.binary ? options.binary : BINARY_CONTENT_TYPES
-      ).map(
-        (candidate) => new RegExp(`^${candidate.replace(/\*/g, ".*")}$`)
-      );
-      const contentType = (headers2["content-type"] || "").split(";")[0];
-      return !!contentType && contentTypes.some((candidate) => candidate.test(contentType));
-    }
-    module2.exports = function isBinary(headers2, options) {
-      if (options.binary === false) {
-        return false;
-      }
-      if (options.binary === true) {
-        return true;
-      }
-      if (typeof options.binary === "function") {
-        return options.binary(headers2);
-      }
-      return isBinaryEncoding(headers2) || isBinaryContent(headers2, options);
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/aws/sanitize-headers.js
-var require_sanitize_headers = __commonJS({
-  "node_modules/serverless-http/lib/provider/aws/sanitize-headers.js"(exports2, module2) {
-    "use strict";
-    module2.exports = function sanitizeHeaders(headers2) {
-      return Object.keys(headers2).reduce((memo, key) => {
-        const value = headers2[key];
-        if (Array.isArray(value)) {
-          memo.multiValueHeaders[key] = value;
-          if (key.toLowerCase() !== "set-cookie") {
-            memo.headers[key] = value.join(", ");
-          }
-        } else {
-          memo.headers[key] = value == null ? "" : value.toString();
-        }
-        return memo;
-      }, {
-        headers: {},
-        multiValueHeaders: {}
-      });
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/aws/get-event-type.js
-var require_get_event_type = __commonJS({
-  "node_modules/serverless-http/lib/provider/aws/get-event-type.js"(exports2, module2) {
-    var HTTP_API_V1 = "HTTP_API_V1";
-    var HTTP_API_V2 = "HTTP_API_V2";
-    var ALB = "ALB";
-    var LAMBDA_EVENT_TYPES = {
-      HTTP_API_V1,
-      HTTP_API_V2,
-      ALB
-    };
-    var getEventType = (event) => {
-      if (event.requestContext && event.requestContext.elb) {
-        return ALB;
-      } else if (event.version === "2.0") {
-        return HTTP_API_V2;
-      } else {
-        return HTTP_API_V1;
-      }
-    };
-    module2.exports = {
-      getEventType,
-      LAMBDA_EVENT_TYPES
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/aws/format-response.js
-var require_format_response = __commonJS({
-  "node_modules/serverless-http/lib/provider/aws/format-response.js"(exports2, module2) {
-    "use strict";
-    var isBinary = require_is_binary();
-    var Response4 = require_response();
-    var sanitizeHeaders = require_sanitize_headers();
-    var { getEventType, LAMBDA_EVENT_TYPES } = require_get_event_type();
-    var combineHeaders = (headers2, multiValueHeaders) => {
-      return Object.entries(headers2).reduce((memo, [key, value]) => {
-        if (multiValueHeaders[key]) {
-          memo[key].push(value);
-        } else {
-          memo[key] = [value];
-        }
-        return memo;
-      }, multiValueHeaders);
-    };
-    module2.exports = (event, response, options) => {
-      const eventType = getEventType(event);
-      const { statusCode } = response;
-      const { headers: headers2, multiValueHeaders } = sanitizeHeaders(Response4.headers(response));
-      let cookies = [];
-      if (multiValueHeaders["set-cookie"]) {
-        cookies = multiValueHeaders["set-cookie"];
-      }
-      const isBase64Encoded = isBinary(headers2, options);
-      const encoding = isBase64Encoded ? "base64" : "utf8";
-      let body = Response4.body(response).toString(encoding);
-      if (headers2["transfer-encoding"] === "chunked" || response.chunkedEncoding) {
-        const raw = Response4.body(response).toString().split("\r\n");
-        const parsed = [];
-        for (let i = 0; i < raw.length; i += 2) {
-          const size = parseInt(raw[i], 16);
-          const value = raw[i + 1];
-          if (value) {
-            parsed.push(value.substring(0, size));
-          }
-        }
-        body = parsed.join("");
-      }
-      if (eventType === LAMBDA_EVENT_TYPES.ALB) {
-        const albResponse = { statusCode, isBase64Encoded, body };
-        if (event.multiValueHeaders) {
-          albResponse.multiValueHeaders = combineHeaders(headers2, multiValueHeaders);
-        } else {
-          albResponse.headers = headers2;
-        }
-        return albResponse;
-      }
-      if (eventType === LAMBDA_EVENT_TYPES.HTTP_API_V2) {
-        return { statusCode, isBase64Encoded, body, headers: headers2, cookies };
-      }
-      return { statusCode, isBase64Encoded, body, headers: headers2, multiValueHeaders };
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/aws/index.js
-var require_aws = __commonJS({
-  "node_modules/serverless-http/lib/provider/aws/index.js"(exports2, module2) {
-    var cleanUpEvent = require_clean_up_event();
-    var createRequest = require_create_request();
-    var formatResponse = require_format_response();
-    module2.exports = (options) => {
-      return (getResponse) => async (event_, context = {}) => {
-        const event = cleanUpEvent(event_, options);
-        const request = createRequest(event, context, options);
-        const response = await getResponse(request, event, context);
-        return formatResponse(event, response, options);
-      };
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/azure/clean-up-request.js
-var require_clean_up_request = __commonJS({
-  "node_modules/serverless-http/lib/provider/azure/clean-up-request.js"(exports2, module2) {
-    "use strict";
-    function getUrl({ requestPath, url }) {
-      if (requestPath) {
-        return requestPath;
-      }
-      return typeof url === "string" ? url : "/";
-    }
-    function getRequestContext(request) {
-      const requestContext = {};
-      requestContext.identity = {};
-      const forwardedIp = request.headers["x-forwarded-for"];
-      const clientIp = request.headers["client-ip"];
-      const ip = forwardedIp ? forwardedIp : clientIp ? clientIp : "";
-      if (ip) {
-        requestContext.identity.sourceIp = ip.split(":")[0];
-      }
-      return requestContext;
-    }
-    module2.exports = function cleanupRequest(req, options) {
-      const request = req || {};
-      request.requestContext = getRequestContext(req);
-      request.method = request.method || "GET";
-      request.url = getUrl(request);
-      request.body = request.body || "";
-      request.headers = request.headers || {};
-      if (options.basePath) {
-        const basePathIndex = request.url.indexOf(options.basePath);
-        if (basePathIndex > -1) {
-          request.url = request.url.substr(basePathIndex + options.basePath.length);
-        }
-      }
-      return request;
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/azure/create-request.js
-var require_create_request2 = __commonJS({
-  "node_modules/serverless-http/lib/provider/azure/create-request.js"(exports2, module2) {
-    "use strict";
-    var url = require("url");
-    var Request2 = require_request();
-    function requestHeaders(request) {
-      return Object.keys(request.headers).reduce((headers2, key) => {
-        headers2[key.toLowerCase()] = request.headers[key];
-        return headers2;
-      }, {});
-    }
-    function requestBody(request) {
-      const type = typeof request.rawBody;
-      if (Buffer.isBuffer(request.rawBody)) {
-        return request.rawBody;
-      } else if (type === "string") {
-        return Buffer.from(request.rawBody, "utf8");
-      } else if (type === "object") {
-        return Buffer.from(JSON.stringify(request.rawBody));
-      }
-      throw new Error(`Unexpected request.body type: ${typeof request.rawBody}`);
-    }
-    module2.exports = (request) => {
-      const method = request.method;
-      const query = request.query;
-      const headers2 = requestHeaders(request);
-      const body = requestBody(request);
-      const req = new Request2({
-        method,
-        headers: headers2,
-        body,
-        url: url.format({
-          pathname: request.url,
-          query
-        })
-      });
-      req.requestContext = request.requestContext;
-      return req;
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/azure/is-binary.js
-var require_is_binary2 = __commonJS({
-  "node_modules/serverless-http/lib/provider/azure/is-binary.js"(exports2, module2) {
-    "use strict";
-    var BINARY_ENCODINGS = ["gzip", "deflate", "br"];
-    var BINARY_CONTENT_TYPES = (process.env.BINARY_CONTENT_TYPES || "").split(",");
-    function isBinaryEncoding(headers2) {
-      const contentEncoding = headers2["content-encoding"];
-      if (typeof contentEncoding === "string") {
-        return contentEncoding.split(",").some(
-          (value) => BINARY_ENCODINGS.some((binaryEncoding) => value.indexOf(binaryEncoding) !== -1)
-        );
-      }
-    }
-    function isBinaryContent(headers2, options) {
-      const contentTypes = [].concat(
-        options.binary ? options.binary : BINARY_CONTENT_TYPES
-      ).map(
-        (candidate) => new RegExp(`^${candidate.replace(/\*/g, ".*")}$`)
-      );
-      const contentType = (headers2["content-type"] || "").split(";")[0];
-      return !!contentType && contentTypes.some((candidate) => candidate.test(contentType));
-    }
-    module2.exports = function isBinary(headers2, options) {
-      if (options.binary === false) {
-        return false;
-      }
-      if (options.binary === true) {
-        return true;
-      }
-      if (typeof options.binary === "function") {
-        return options.binary(headers2);
-      }
-      return isBinaryEncoding(headers2) || isBinaryContent(headers2, options);
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/azure/set-cookie.json
-var require_set_cookie = __commonJS({
-  "node_modules/serverless-http/lib/provider/azure/set-cookie.json"(exports2, module2) {
-    module2.exports = { variations: ["set-cookie", "Set-cookie", "sEt-cookie", "SEt-cookie", "seT-cookie", "SeT-cookie", "sET-cookie", "SET-cookie", "set-Cookie", "Set-Cookie", "sEt-Cookie", "SEt-Cookie", "seT-Cookie", "SeT-Cookie", "sET-Cookie", "SET-Cookie", "set-cOokie", "Set-cOokie", "sEt-cOokie", "SEt-cOokie", "seT-cOokie", "SeT-cOokie", "sET-cOokie", "SET-cOokie", "set-COokie", "Set-COokie", "sEt-COokie", "SEt-COokie", "seT-COokie", "SeT-COokie", "sET-COokie", "SET-COokie", "set-coOkie", "Set-coOkie", "sEt-coOkie", "SEt-coOkie", "seT-coOkie", "SeT-coOkie", "sET-coOkie", "SET-coOkie", "set-CoOkie", "Set-CoOkie", "sEt-CoOkie", "SEt-CoOkie", "seT-CoOkie", "SeT-CoOkie", "sET-CoOkie", "SET-CoOkie", "set-cOOkie", "Set-cOOkie", "sEt-cOOkie", "SEt-cOOkie", "seT-cOOkie", "SeT-cOOkie", "sET-cOOkie", "SET-cOOkie", "set-COOkie", "Set-COOkie", "sEt-COOkie", "SEt-COOkie", "seT-COOkie", "SeT-COOkie", "sET-COOkie", "SET-COOkie", "set-cooKie", "Set-cooKie", "sEt-cooKie", "SEt-cooKie", "seT-cooKie", "SeT-cooKie", "sET-cooKie", "SET-cooKie", "set-CooKie", "Set-CooKie", "sEt-CooKie", "SEt-CooKie", "seT-CooKie", "SeT-CooKie", "sET-CooKie", "SET-CooKie", "set-cOoKie", "Set-cOoKie", "sEt-cOoKie", "SEt-cOoKie", "seT-cOoKie", "SeT-cOoKie", "sET-cOoKie", "SET-cOoKie", "set-COoKie", "Set-COoKie", "sEt-COoKie", "SEt-COoKie", "seT-COoKie", "SeT-COoKie", "sET-COoKie", "SET-COoKie", "set-coOKie", "Set-coOKie", "sEt-coOKie", "SEt-coOKie", "seT-coOKie", "SeT-coOKie", "sET-coOKie", "SET-coOKie", "set-CoOKie", "Set-CoOKie", "sEt-CoOKie", "SEt-CoOKie", "seT-CoOKie", "SeT-CoOKie", "sET-CoOKie", "SET-CoOKie", "set-cOOKie", "Set-cOOKie", "sEt-cOOKie", "SEt-cOOKie", "seT-cOOKie", "SeT-cOOKie", "sET-cOOKie", "SET-cOOKie", "set-COOKie", "Set-COOKie", "sEt-COOKie", "SEt-COOKie", "seT-COOKie", "SeT-COOKie", "sET-COOKie", "SET-COOKie", "set-cookIe", "Set-cookIe", "sEt-cookIe", "SEt-cookIe", "seT-cookIe", "SeT-cookIe", "sET-cookIe", "SET-cookIe", "set-CookIe", "Set-CookIe", "sEt-CookIe", "SEt-CookIe", "seT-CookIe", "SeT-CookIe", "sET-CookIe", "SET-CookIe", "set-cOokIe", "Set-cOokIe", "sEt-cOokIe", "SEt-cOokIe", "seT-cOokIe", "SeT-cOokIe", "sET-cOokIe", "SET-cOokIe", "set-COokIe", "Set-COokIe", "sEt-COokIe", "SEt-COokIe", "seT-COokIe", "SeT-COokIe", "sET-COokIe", "SET-COokIe", "set-coOkIe", "Set-coOkIe", "sEt-coOkIe", "SEt-coOkIe", "seT-coOkIe", "SeT-coOkIe", "sET-coOkIe", "SET-coOkIe", "set-CoOkIe", "Set-CoOkIe", "sEt-CoOkIe", "SEt-CoOkIe", "seT-CoOkIe", "SeT-CoOkIe", "sET-CoOkIe", "SET-CoOkIe", "set-cOOkIe", "Set-cOOkIe", "sEt-cOOkIe", "SEt-cOOkIe", "seT-cOOkIe", "SeT-cOOkIe", "sET-cOOkIe", "SET-cOOkIe", "set-COOkIe", "Set-COOkIe", "sEt-COOkIe", "SEt-COOkIe", "seT-COOkIe", "SeT-COOkIe", "sET-COOkIe", "SET-COOkIe", "set-cooKIe", "Set-cooKIe", "sEt-cooKIe", "SEt-cooKIe", "seT-cooKIe", "SeT-cooKIe", "sET-cooKIe", "SET-cooKIe", "set-CooKIe", "Set-CooKIe", "sEt-CooKIe", "SEt-CooKIe", "seT-CooKIe", "SeT-CooKIe", "sET-CooKIe", "SET-CooKIe", "set-cOoKIe", "Set-cOoKIe", "sEt-cOoKIe", "SEt-cOoKIe", "seT-cOoKIe", "SeT-cOoKIe", "sET-cOoKIe", "SET-cOoKIe", "set-COoKIe", "Set-COoKIe", "sEt-COoKIe", "SEt-COoKIe", "seT-COoKIe", "SeT-COoKIe", "sET-COoKIe", "SET-COoKIe", "set-coOKIe", "Set-coOKIe", "sEt-coOKIe", "SEt-coOKIe", "seT-coOKIe", "SeT-coOKIe", "sET-coOKIe", "SET-coOKIe", "set-CoOKIe", "Set-CoOKIe", "sEt-CoOKIe", "SEt-CoOKIe", "seT-CoOKIe", "SeT-CoOKIe", "sET-CoOKIe", "SET-CoOKIe", "set-cOOKIe", "Set-cOOKIe", "sEt-cOOKIe", "SEt-cOOKIe", "seT-cOOKIe", "SeT-cOOKIe", "sET-cOOKIe", "SET-cOOKIe", "set-COOKIe", "Set-COOKIe", "sEt-COOKIe", "SEt-COOKIe", "seT-COOKIe", "SeT-COOKIe", "sET-COOKIe", "SET-COOKIe", "set-cookiE", "Set-cookiE", "sEt-cookiE", "SEt-cookiE", "seT-cookiE", "SeT-cookiE", "sET-cookiE", "SET-cookiE", "set-CookiE", "Set-CookiE", "sEt-CookiE", "SEt-CookiE", "seT-CookiE", "SeT-CookiE", "sET-CookiE", "SET-CookiE", "set-cOokiE", "Set-cOokiE", "sEt-cOokiE", "SEt-cOokiE", "seT-cOokiE", "SeT-cOokiE", "sET-cOokiE", "SET-cOokiE", "set-COokiE", "Set-COokiE", "sEt-COokiE", "SEt-COokiE", "seT-COokiE", "SeT-COokiE", "sET-COokiE", "SET-COokiE", "set-coOkiE", "Set-coOkiE", "sEt-coOkiE", "SEt-coOkiE", "seT-coOkiE", "SeT-coOkiE", "sET-coOkiE", "SET-coOkiE", "set-CoOkiE", "Set-CoOkiE", "sEt-CoOkiE", "SEt-CoOkiE", "seT-CoOkiE", "SeT-CoOkiE", "sET-CoOkiE", "SET-CoOkiE", "set-cOOkiE", "Set-cOOkiE", "sEt-cOOkiE", "SEt-cOOkiE", "seT-cOOkiE", "SeT-cOOkiE", "sET-cOOkiE", "SET-cOOkiE", "set-COOkiE", "Set-COOkiE", "sEt-COOkiE", "SEt-COOkiE", "seT-COOkiE", "SeT-COOkiE", "sET-COOkiE", "SET-COOkiE", "set-cooKiE", "Set-cooKiE", "sEt-cooKiE", "SEt-cooKiE", "seT-cooKiE", "SeT-cooKiE", "sET-cooKiE", "SET-cooKiE", "set-CooKiE", "Set-CooKiE", "sEt-CooKiE", "SEt-CooKiE", "seT-CooKiE", "SeT-CooKiE", "sET-CooKiE", "SET-CooKiE", "set-cOoKiE", "Set-cOoKiE", "sEt-cOoKiE", "SEt-cOoKiE", "seT-cOoKiE", "SeT-cOoKiE", "sET-cOoKiE", "SET-cOoKiE", "set-COoKiE", "Set-COoKiE", "sEt-COoKiE", "SEt-COoKiE", "seT-COoKiE", "SeT-COoKiE", "sET-COoKiE", "SET-COoKiE", "set-coOKiE", "Set-coOKiE", "sEt-coOKiE", "SEt-coOKiE", "seT-coOKiE", "SeT-coOKiE", "sET-coOKiE", "SET-coOKiE", "set-CoOKiE", "Set-CoOKiE", "sEt-CoOKiE", "SEt-CoOKiE", "seT-CoOKiE", "SeT-CoOKiE", "sET-CoOKiE", "SET-CoOKiE", "set-cOOKiE", "Set-cOOKiE", "sEt-cOOKiE", "SEt-cOOKiE", "seT-cOOKiE", "SeT-cOOKiE", "sET-cOOKiE", "SET-cOOKiE", "set-COOKiE", "Set-COOKiE", "sEt-COOKiE", "SEt-COOKiE", "seT-COOKiE", "SeT-COOKiE", "sET-COOKiE", "SET-COOKiE", "set-cookIE", "Set-cookIE", "sEt-cookIE", "SEt-cookIE", "seT-cookIE", "SeT-cookIE", "sET-cookIE", "SET-cookIE", "set-CookIE", "Set-CookIE", "sEt-CookIE", "SEt-CookIE", "seT-CookIE", "SeT-CookIE", "sET-CookIE", "SET-CookIE", "set-cOokIE", "Set-cOokIE", "sEt-cOokIE", "SEt-cOokIE", "seT-cOokIE", "SeT-cOokIE", "sET-cOokIE", "SET-cOokIE", "set-COokIE", "Set-COokIE", "sEt-COokIE", "SEt-COokIE", "seT-COokIE", "SeT-COokIE", "sET-COokIE", "SET-COokIE", "set-coOkIE", "Set-coOkIE", "sEt-coOkIE", "SEt-coOkIE", "seT-coOkIE", "SeT-coOkIE", "sET-coOkIE", "SET-coOkIE", "set-CoOkIE", "Set-CoOkIE", "sEt-CoOkIE", "SEt-CoOkIE", "seT-CoOkIE", "SeT-CoOkIE", "sET-CoOkIE", "SET-CoOkIE", "set-cOOkIE", "Set-cOOkIE", "sEt-cOOkIE", "SEt-cOOkIE", "seT-cOOkIE", "SeT-cOOkIE", "sET-cOOkIE", "SET-cOOkIE", "set-COOkIE", "Set-COOkIE", "sEt-COOkIE", "SEt-COOkIE", "seT-COOkIE", "SeT-COOkIE", "sET-COOkIE", "SET-COOkIE", "set-cooKIE", "Set-cooKIE", "sEt-cooKIE", "SEt-cooKIE", "seT-cooKIE", "SeT-cooKIE", "sET-cooKIE", "SET-cooKIE", "set-CooKIE", "Set-CooKIE", "sEt-CooKIE", "SEt-CooKIE", "seT-CooKIE", "SeT-CooKIE", "sET-CooKIE", "SET-CooKIE", "set-cOoKIE", "Set-cOoKIE", "sEt-cOoKIE", "SEt-cOoKIE", "seT-cOoKIE", "SeT-cOoKIE", "sET-cOoKIE", "SET-cOoKIE", "set-COoKIE", "Set-COoKIE", "sEt-COoKIE", "SEt-COoKIE", "seT-COoKIE", "SeT-COoKIE", "sET-COoKIE", "SET-COoKIE", "set-coOKIE", "Set-coOKIE", "sEt-coOKIE", "SEt-coOKIE", "seT-coOKIE", "SeT-coOKIE", "sET-coOKIE", "SET-coOKIE", "set-CoOKIE", "Set-CoOKIE", "sEt-CoOKIE", "SEt-CoOKIE", "seT-CoOKIE", "SeT-CoOKIE", "sET-CoOKIE", "SET-CoOKIE", "set-cOOKIE", "Set-cOOKIE", "sEt-cOOKIE", "SEt-cOOKIE", "seT-cOOKIE", "SeT-cOOKIE", "sET-cOOKIE", "SET-cOOKIE", "set-COOKIE", "Set-COOKIE", "sEt-COOKIE", "SEt-COOKIE", "seT-COOKIE", "SeT-COOKIE", "sET-COOKIE", "SET-COOKIE"] };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/azure/sanitize-headers.js
-var require_sanitize_headers2 = __commonJS({
-  "node_modules/serverless-http/lib/provider/azure/sanitize-headers.js"(exports2, module2) {
-    "use strict";
-    var setCookieVariations = require_set_cookie().variations;
-    module2.exports = function sanitizeHeaders(headers2) {
-      return Object.keys(headers2).reduce((memo, key) => {
-        const value = headers2[key];
-        if (Array.isArray(value)) {
-          if (key.toLowerCase() === "set-cookie") {
-            value.forEach((cookie, i) => {
-              memo[setCookieVariations[i]] = cookie;
-            });
-          } else {
-            memo[key] = value.join(", ");
-          }
-        } else {
-          memo[key] = value == null ? "" : value.toString();
-        }
-        return memo;
-      }, {});
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/azure/format-response.js
-var require_format_response2 = __commonJS({
-  "node_modules/serverless-http/lib/provider/azure/format-response.js"(exports2, module2) {
-    var isBinary = require_is_binary2();
-    var Response4 = require_response();
-    var sanitizeHeaders = require_sanitize_headers2();
-    module2.exports = (response, options) => {
-      const { statusCode } = response;
-      const headers2 = sanitizeHeaders(Response4.headers(response));
-      if (headers2["transfer-encoding"] === "chunked" || response.chunkedEncoding) {
-        throw new Error("chunked encoding not supported");
-      }
-      const isBase64Encoded = isBinary(headers2, options);
-      const encoding = isBase64Encoded ? "base64" : "utf8";
-      const body = Response4.body(response).toString(encoding);
-      return { status: statusCode, headers: headers2, isBase64Encoded, body };
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/azure/index.js
-var require_azure = __commonJS({
-  "node_modules/serverless-http/lib/provider/azure/index.js"(exports2, module2) {
-    var cleanupRequest = require_clean_up_request();
-    var createRequest = require_create_request2();
-    var formatResponse = require_format_response2();
-    module2.exports = (options) => {
-      return (getResponse) => async (context, req) => {
-        const event = cleanupRequest(req, options);
-        const request = createRequest(event, options);
-        const response = await getResponse(request, context, event);
-        context.log(response);
-        return formatResponse(response, options);
-      };
-    };
-  }
-});
-
-// node_modules/serverless-http/lib/provider/get-provider.js
-var require_get_provider = __commonJS({
-  "node_modules/serverless-http/lib/provider/get-provider.js"(exports2, module2) {
-    var aws = require_aws();
-    var azure = require_azure();
-    var providers = {
-      aws,
-      azure
-    };
-    module2.exports = function getProvider(options) {
-      const { provider = "aws" } = options;
-      if (provider in providers) {
-        return providers[provider](options);
-      }
-      throw new Error(`Unsupported provider ${provider}`);
-    };
-  }
-});
-
-// node_modules/serverless-http/serverless-http.js
-var require_serverless_http = __commonJS({
-  "node_modules/serverless-http/serverless-http.js"(exports2, module2) {
-    "use strict";
-    var finish = require_finish();
-    var getFramework = require_get_framework();
-    var getProvider = require_get_provider();
-    var defaultOptions = {
-      requestId: "x-request-id"
-    };
-    module2.exports = function(app2, opts) {
-      const options = Object.assign({}, defaultOptions, opts);
-      const framework = getFramework(app2);
-      const provider = getProvider(options);
-      return provider(async (request, ...context) => {
-        await finish(request, options.request, ...context);
-        const response = await framework(request);
-        await finish(response, options.response, ...context);
-        response.emit("close");
-        return response;
-      });
-    };
-  }
-});
-
 // node_modules/depd/index.js
 var require_depd = __commonJS({
   "node_modules/depd/index.js"(exports2, module2) {
@@ -19668,14 +18849,14 @@ var require_init = __commonJS({
   "node_modules/express/lib/middleware/init.js"(exports2) {
     "use strict";
     var setPrototypeOf = require_setprototypeof();
-    exports2.init = function(app2) {
+    exports2.init = function(app3) {
       return function expressInit(req, res, next) {
-        if (app2.enabled("x-powered-by")) res.setHeader("X-Powered-By", "Express");
+        if (app3.enabled("x-powered-by")) res.setHeader("X-Powered-By", "Express");
         req.res = res;
         res.req = req;
         req.next = next;
-        setPrototypeOf(req, app2.request);
-        setPrototypeOf(res, app2.response);
+        setPrototypeOf(req, app3.request);
+        setPrototypeOf(res, app3.response);
         res.locals = res.locals || /* @__PURE__ */ Object.create(null);
         next();
       };
@@ -22355,15 +21536,15 @@ var require_application = __commonJS({
     var setPrototypeOf = require_setprototypeof();
     var hasOwnProperty2 = Object.prototype.hasOwnProperty;
     var slice = Array.prototype.slice;
-    var app2 = exports2 = module2.exports = {};
+    var app3 = exports2 = module2.exports = {};
     var trustProxyDefaultSymbol = "@@symbol:trust_proxy_default";
-    app2.init = function init() {
+    app3.init = function init() {
       this.cache = {};
       this.engines = {};
       this.settings = {};
       this.defaultConfiguration();
     };
-    app2.defaultConfiguration = function defaultConfiguration() {
+    app3.defaultConfiguration = function defaultConfiguration() {
       var env = "production";
       this.enable("x-powered-by");
       this.set("etag", "weak");
@@ -22401,7 +21582,7 @@ var require_application = __commonJS({
         }
       });
     };
-    app2.lazyrouter = function lazyrouter() {
+    app3.lazyrouter = function lazyrouter() {
       if (!this._router) {
         this._router = new Router({
           caseSensitive: this.enabled("case sensitive routing"),
@@ -22411,7 +21592,7 @@ var require_application = __commonJS({
         this._router.use(middleware.init(this));
       }
     };
-    app2.handle = function handle(req, res, callback) {
+    app3.handle = function handle(req, res, callback) {
       var router = this._router;
       var done = callback || finalhandler(req, res, {
         env: this.get("env"),
@@ -22424,7 +21605,7 @@ var require_application = __commonJS({
       }
       router.handle(req, res, done);
     };
-    app2.use = function use(fn) {
+    app3.use = function use(fn) {
       var offset = 0;
       var path3 = "/";
       if (typeof fn !== "function") {
@@ -22462,11 +21643,11 @@ var require_application = __commonJS({
       }, this);
       return this;
     };
-    app2.route = function route(path3) {
+    app3.route = function route(path3) {
       this.lazyrouter();
       return this._router.route(path3);
     };
-    app2.engine = function engine(ext, fn) {
+    app3.engine = function engine(ext, fn) {
       if (typeof fn !== "function") {
         throw new Error("callback function required");
       }
@@ -22474,7 +21655,7 @@ var require_application = __commonJS({
       this.engines[extension] = fn;
       return this;
     };
-    app2.param = function param(name2, fn) {
+    app3.param = function param(name2, fn) {
       this.lazyrouter();
       if (Array.isArray(name2)) {
         for (var i = 0; i < name2.length; i++) {
@@ -22485,7 +21666,7 @@ var require_application = __commonJS({
       this._router.param(name2, fn);
       return this;
     };
-    app2.set = function set(setting, val) {
+    app3.set = function set(setting, val) {
       if (arguments.length === 1) {
         var settings = this.settings;
         while (settings && settings !== Object.prototype) {
@@ -22515,23 +21696,23 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.path = function path3() {
+    app3.path = function path3() {
       return this.parent ? this.parent.path() + this.mountpath : "";
     };
-    app2.enabled = function enabled(setting) {
+    app3.enabled = function enabled(setting) {
       return Boolean(this.set(setting));
     };
-    app2.disabled = function disabled(setting) {
+    app3.disabled = function disabled(setting) {
       return !this.set(setting);
     };
-    app2.enable = function enable(setting) {
+    app3.enable = function enable(setting) {
       return this.set(setting, true);
     };
-    app2.disable = function disable(setting) {
+    app3.disable = function disable(setting) {
       return this.set(setting, false);
     };
     methods.forEach(function(method) {
-      app2[method] = function(path3) {
+      app3[method] = function(path3) {
         if (method === "get" && arguments.length === 1) {
           return this.set(path3);
         }
@@ -22541,7 +21722,7 @@ var require_application = __commonJS({
         return this;
       };
     });
-    app2.all = function all2(path3) {
+    app3.all = function all2(path3) {
       this.lazyrouter();
       var route = this._router.route(path3);
       var args = slice.call(arguments, 1);
@@ -22550,8 +21731,8 @@ var require_application = __commonJS({
       }
       return this;
     };
-    app2.del = deprecate.function(app2.delete, "app.del: Use app.delete instead");
-    app2.render = function render2(name2, options, callback) {
+    app3.del = deprecate.function(app3.delete, "app.del: Use app.delete instead");
+    app3.render = function render2(name2, options, callback) {
       var cache = this.cache;
       var done = callback;
       var engines = this.engines;
@@ -22592,7 +21773,7 @@ var require_application = __commonJS({
       }
       tryRender(view, renderOptions, done);
     };
-    app2.listen = function listen() {
+    app3.listen = function listen() {
       var server = http.createServer(this);
       return server.listen.apply(server, arguments);
     };
@@ -23188,7 +22369,7 @@ var require_accepts = __commonJS({
 });
 
 // node_modules/express/lib/request.js
-var require_request2 = __commonJS({
+var require_request = __commonJS({
   "node_modules/express/lib/request.js"(exports2, module2) {
     "use strict";
     var accepts = require_accepts();
@@ -23611,7 +22792,7 @@ var require_vary = __commonJS({
 });
 
 // node_modules/express/lib/response.js
-var require_response2 = __commonJS({
+var require_response = __commonJS({
   "node_modules/express/lib/response.js"(exports2, module2) {
     "use strict";
     var Buffer3 = require_safe_buffer().Buffer;
@@ -23658,7 +22839,7 @@ var require_response2 = __commonJS({
       var encoding;
       var req = this.req;
       var type;
-      var app2 = this.app;
+      var app3 = this.app;
       if (arguments.length === 2) {
         if (typeof arguments[0] !== "number" && typeof arguments[1] === "number") {
           deprecate("res.send(body, status): Use res.status(status).send(body) instead");
@@ -23705,7 +22886,7 @@ var require_response2 = __commonJS({
           this.set("Content-Type", setCharset(type, "utf-8"));
         }
       }
-      var etagFn = app2.get("etag fn");
+      var etagFn = app3.get("etag fn");
       var generateETag = !this.get("ETag") && typeof etagFn === "function";
       var len;
       if (chunk !== void 0) {
@@ -23757,10 +22938,10 @@ var require_response2 = __commonJS({
           val = arguments[1];
         }
       }
-      var app2 = this.app;
-      var escape4 = app2.get("json escape");
-      var replacer = app2.get("json replacer");
-      var spaces = app2.get("json spaces");
+      var app3 = this.app;
+      var escape4 = app3.get("json escape");
+      var replacer = app3.get("json replacer");
+      var spaces = app3.get("json spaces");
       var body = stringify(val, replacer, spaces, escape4);
       if (!this.get("Content-Type")) {
         this.set("Content-Type", "application/json");
@@ -23779,12 +22960,12 @@ var require_response2 = __commonJS({
           val = arguments[1];
         }
       }
-      var app2 = this.app;
-      var escape4 = app2.get("json escape");
-      var replacer = app2.get("json replacer");
-      var spaces = app2.get("json spaces");
+      var app3 = this.app;
+      var escape4 = app3.get("json escape");
+      var replacer = app3.get("json replacer");
+      var spaces = app3.get("json spaces");
       var body = stringify(val, replacer, spaces, escape4);
-      var callback = this.req.query[app2.get("jsonp callback name")];
+      var callback = this.req.query[app3.get("jsonp callback name")];
       if (!this.get("Content-Type")) {
         this.set("X-Content-Type-Options", "nosniff");
         this.set("Content-Type", "application/json");
@@ -24049,7 +23230,7 @@ var require_response2 = __commonJS({
       return this;
     };
     res.render = function render2(view, options, callback) {
-      var app2 = this.req.app;
+      var app3 = this.req.app;
       var done = callback;
       var opts = options || {};
       var req = this.req;
@@ -24063,7 +23244,7 @@ var require_response2 = __commonJS({
         if (err) return req.next(err);
         self2.send(str);
       };
-      app2.render(view, opts, done);
+      app3.render(view, opts, done);
     };
     function sendfile(res2, file, options, callback) {
       var done = false;
@@ -24267,23 +23448,23 @@ var require_express = __commonJS({
     var proto = require_application();
     var Route = require_route();
     var Router = require_router();
-    var req = require_request2();
-    var res = require_response2();
+    var req = require_request();
+    var res = require_response();
     exports2 = module2.exports = createApplication;
     function createApplication() {
-      var app2 = function(req2, res2, next) {
-        app2.handle(req2, res2, next);
+      var app3 = function(req2, res2, next) {
+        app3.handle(req2, res2, next);
       };
-      mixin(app2, EventEmitter.prototype, false);
-      mixin(app2, proto, false);
-      app2.request = Object.create(req, {
-        app: { configurable: true, enumerable: true, writable: true, value: app2 }
+      mixin(app3, EventEmitter.prototype, false);
+      mixin(app3, proto, false);
+      app3.request = Object.create(req, {
+        app: { configurable: true, enumerable: true, writable: true, value: app3 }
       });
-      app2.response = Object.create(res, {
-        app: { configurable: true, enumerable: true, writable: true, value: app2 }
+      app3.response = Object.create(res, {
+        app: { configurable: true, enumerable: true, writable: true, value: app3 }
       });
-      app2.init();
-      return app2;
+      app3.init();
+      return app3;
     }
     exports2.application = proto;
     exports2.request = req;
@@ -43612,7 +42793,7 @@ var require_sessionmanager = __commonJS({
 });
 
 // node_modules/passport/lib/http/request.js
-var require_request3 = __commonJS({
+var require_request2 = __commonJS({
   "node_modules/passport/lib/http/request.js"(exports2, module2) {
     var req = exports2 = module2.exports = {};
     req.login = req.logIn = function(user, options, done) {
@@ -43670,7 +42851,7 @@ var require_request3 = __commonJS({
 // node_modules/passport/lib/middleware/initialize.js
 var require_initialize = __commonJS({
   "node_modules/passport/lib/middleware/initialize.js"(exports2, module2) {
-    var IncomingMessageExt = require_request3();
+    var IncomingMessageExt = require_request2();
     module2.exports = function initialize(passport2, options) {
       options = options || {};
       return function initialize2(req, res, next) {
@@ -43713,7 +42894,7 @@ var require_authenticationerror = __commonJS({
 var require_authenticate = __commonJS({
   "node_modules/passport/lib/middleware/authenticate.js"(exports2, module2) {
     var http = require("http");
-    var IncomingMessageExt = require_request3();
+    var IncomingMessageExt = require_request2();
     var AuthenticationError = require_authenticationerror();
     module2.exports = function authenticate(passport2, name2, options, callback) {
       if (typeof options == "function") {
@@ -60280,10 +59461,9 @@ var require_websocket_server = __commonJS({
 // api/index.ts
 var index_exports = {};
 __export(index_exports, {
-  default: () => index_default
+  default: () => handler
 });
 module.exports = __toCommonJS(index_exports);
-var import_serverless_http = __toESM(require_serverless_http(), 1);
 
 // server/app.ts
 var import_express3 = __toESM(require_express2(), 1);
@@ -77464,11 +76644,11 @@ async function upsertOAuthUser(claims) {
   });
   return { id: newUser.id, email: newUser.email, role: newUser.role, name: newUser.name };
 }
-async function setupAuth(app2) {
-  app2.set("trust proxy", 1);
-  app2.use(getSession());
-  app2.use(import_passport2.default.initialize());
-  app2.use(import_passport2.default.session());
+async function setupAuth(app3) {
+  app3.set("trust proxy", 1);
+  app3.use(getSession());
+  app3.use(import_passport2.default.initialize());
+  app3.use(import_passport2.default.session());
   const config = await getOidcConfig();
   const verify = async (tokens, verified) => {
     try {
@@ -77500,14 +76680,14 @@ async function setupAuth(app2) {
   };
   import_passport2.default.serializeUser((user, cb) => cb(null, user));
   import_passport2.default.deserializeUser((user, cb) => cb(null, user));
-  app2.get("/api/auth/oidc/login", (req, res, next) => {
+  app3.get("/api/auth/oidc/login", (req, res, next) => {
     ensureStrategy(req.hostname);
     import_passport2.default.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"]
     })(req, res, next);
   });
-  app2.get("/api/auth/oidc/callback", (req, res, next) => {
+  app3.get("/api/auth/oidc/callback", (req, res, next) => {
     ensureStrategy(req.hostname);
     import_passport2.default.authenticate(`replitauth:${req.hostname}`, (err, user) => {
       if (err || !user) {
@@ -77520,7 +76700,7 @@ async function setupAuth(app2) {
       return res.redirect("/dashboard");
     })(req, res, next);
   });
-  app2.get("/api/auth/oidc/logout", async (req, res) => {
+  app3.get("/api/auth/oidc/logout", async (req, res) => {
     res.clearCookie("token");
     try {
       const config2 = await getOidcConfig();
@@ -83433,15 +82613,15 @@ var import_express2 = __toESM(require_express2(), 1);
 var import_express = __toESM(require_express2(), 1);
 var import_fs = __toESM(require("fs"), 1);
 var import_path = __toESM(require("path"), 1);
-function serveStatic(app2) {
+function serveStatic(app3) {
   const distPath = import_path.default.resolve(__dirname, "public");
   if (!import_fs.default.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
-  app2.use(import_express.default.static(distPath));
-  app2.use("*", (_req, res) => {
+  app3.use(import_express.default.static(distPath));
+  app3.use("*", (_req, res) => {
     res.sendFile(import_path.default.resolve(distPath, "index.html"));
   });
 }
@@ -84094,12 +83274,12 @@ var VALID_CATEGORIES = [
   "proof_of_address",
   "other"
 ];
-async function registerRoutes(httpServer2, app2) {
+async function registerRoutes(httpServer2, app3) {
   if (httpServer2) {
     wsService.initialize(httpServer2);
   }
-  await setupAuth(app2);
-  app2.post("/api/auth/register", authLimiter, async (req, res) => {
+  await setupAuth(app3);
+  app3.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
       const result = registerSchema2.safeParse(req.body);
       if (!result.success) {
@@ -84143,7 +83323,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al registrar usuario" });
     }
   });
-  app2.post("/api/auth/login", authLimiter, async (req, res) => {
+  app3.post("/api/auth/login", authLimiter, async (req, res) => {
     try {
       const result = loginSchema2.safeParse(req.body);
       if (!result.success) {
@@ -84183,14 +83363,14 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al iniciar sesi\xF3n" });
     }
   });
-  app2.get("/api/auth/me", authenticateToken, async (req, res) => {
+  app3.get("/api/auth/me", authenticateToken, async (req, res) => {
     res.json({ user: req.user });
   });
-  app2.post("/api/auth/logout", (_req, res) => {
+  app3.post("/api/auth/logout", (_req, res) => {
     res.clearCookie("token", { path: "/" });
     res.json({ message: "Sesi\xF3n cerrada exitosamente" });
   });
-  app2.post("/api/auth/oauth", authLimiter, async (req, res) => {
+  app3.post("/api/auth/oauth", authLimiter, async (req, res) => {
     try {
       const { email, name: name2, provider, providerId } = req.body;
       if (!email || !name2 || !provider || !providerId) {
@@ -84235,7 +83415,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error en autenticaci\xF3n OAuth" });
     }
   });
-  app2.get("/api/auth/ws-token", authenticateToken, async (req, res) => {
+  app3.get("/api/auth/ws-token", authenticateToken, async (req, res) => {
     try {
       const wsToken = import_jsonwebtoken3.default.sign(
         { id: req.user.id, role: req.user.role },
@@ -84248,7 +83428,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al generar token" });
     }
   });
-  app2.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
+  app3.post("/api/auth/forgot-password", authLimiter, async (req, res) => {
     try {
       const { email } = req.body;
       if (!email || typeof email !== "string") {
@@ -84287,7 +83467,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error processing request" });
     }
   });
-  app2.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+  app3.post("/api/auth/reset-password", authLimiter, async (req, res) => {
     try {
       const { token: token2, password } = req.body;
       if (!token2 || !password) {
@@ -84323,7 +83503,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error resetting password" });
     }
   });
-  app2.get("/api/auth/verify-reset-token", async (req, res) => {
+  app3.get("/api/auth/verify-reset-token", async (req, res) => {
     try {
       const { token: token2 } = req.query;
       if (!token2 || typeof token2 !== "string") {
@@ -84342,7 +83522,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ valid: false, message: "Error verifying token" });
     }
   });
-  app2.post("/api/contact", contactLimiter, async (req, res) => {
+  app3.post("/api/contact", contactLimiter, async (req, res) => {
     try {
       const result = insertContactSubmissionSchema.safeParse(req.body);
       if (!result.success) {
@@ -84363,7 +83543,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al enviar formulario" });
     }
   });
-  app2.get("/api/cases", authenticateToken, async (req, res) => {
+  app3.get("/api/cases", authenticateToken, async (req, res) => {
     try {
       const cases = await storage.getTaxCasesByClient(req.user.id);
       res.json(cases);
@@ -84372,7 +83552,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener casos" });
     }
   });
-  app2.get("/api/documents", authenticateToken, async (req, res) => {
+  app3.get("/api/documents", authenticateToken, async (req, res) => {
     try {
       const documents2 = await storage.getDocumentsByClient(req.user.id);
       res.json(documents2);
@@ -84381,7 +83561,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener documentos" });
     }
   });
-  app2.post(
+  app3.post(
     "/api/documents/upload",
     authenticateToken,
     uploadLimiter,
@@ -84442,7 +83622,7 @@ async function registerRoutes(httpServer2, app2) {
       }
     }
   );
-  app2.get("/api/documents/:id/download", authenticateToken, async (req, res) => {
+  app3.get("/api/documents/:id/download", authenticateToken, async (req, res) => {
     try {
       const documentId = parseInt(req.params.id);
       if (isNaN(documentId)) {
@@ -84470,7 +83650,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al descargar documento" });
     }
   });
-  app2.get("/api/appointments", authenticateToken, async (req, res) => {
+  app3.get("/api/appointments", authenticateToken, async (req, res) => {
     try {
       const appointments2 = await storage.getAppointmentsByClient(req.user.id);
       res.json(appointments2);
@@ -84479,7 +83659,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener citas" });
     }
   });
-  app2.post("/api/appointments", authenticateToken, async (req, res) => {
+  app3.post("/api/appointments", authenticateToken, async (req, res) => {
     try {
       const { appointmentDate, notes } = req.body;
       if (!appointmentDate) {
@@ -84527,7 +83707,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al crear cita" });
     }
   });
-  app2.get("/api/messages/conversations", authenticateToken, async (req, res) => {
+  app3.get("/api/messages/conversations", authenticateToken, async (req, res) => {
     try {
       const conversations = await storage.getConversationsForUser(req.user.id);
       res.json(conversations);
@@ -84536,7 +83716,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener conversaciones" });
     }
   });
-  app2.get("/api/messages/unread-count", authenticateToken, async (req, res) => {
+  app3.get("/api/messages/unread-count", authenticateToken, async (req, res) => {
     try {
       const count2 = await storage.getUnreadCount(req.user.id);
       res.json({ count: count2 });
@@ -84545,7 +83725,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener conteo" });
     }
   });
-  app2.get("/api/messages/:partnerId", authenticateToken, async (req, res) => {
+  app3.get("/api/messages/:partnerId", authenticateToken, async (req, res) => {
     try {
       const partnerId = parseInt(req.params.partnerId);
       if (isNaN(partnerId)) {
@@ -84560,7 +83740,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener mensajes" });
     }
   });
-  app2.post("/api/messages", authenticateToken, messageLimiter, async (req, res) => {
+  app3.post("/api/messages", authenticateToken, messageLimiter, async (req, res) => {
     try {
       const result = messageSchema.safeParse({
         ...req.body,
@@ -84602,7 +83782,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al enviar mensaje" });
     }
   });
-  app2.get("/api/preparers", authenticateToken, async (_req, res) => {
+  app3.get("/api/preparers", authenticateToken, async (_req, res) => {
     try {
       const preparers = await db.select().from(users).where(
         sql`${users.role} IN ('admin', 'preparer')`
@@ -84613,7 +83793,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener preparadores" });
     }
   });
-  app2.get("/api/admin/stats", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/stats", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const stats = await storage.getAdminStats();
       res.json(stats);
@@ -84622,7 +83802,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener estad\xEDsticas" });
     }
   });
-  app2.get("/api/admin/clients", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/clients", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const clients = await storage.getClientsWithDetails();
       res.json(clients);
@@ -84631,7 +83811,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener clientes" });
     }
   });
-  app2.get("/api/admin/clients/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app3.get("/api/admin/clients/:id", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const clientId = parseInt(req.params.id);
       if (isNaN(clientId)) {
@@ -84652,7 +83832,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener detalles" });
     }
   });
-  app2.get("/api/admin/documents", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/documents", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const documents2 = await storage.getAllDocuments();
       res.json(documents2);
@@ -84661,7 +83841,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener documentos" });
     }
   });
-  app2.get("/api/admin/cases", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/cases", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const cases = await storage.getAllTaxCases();
       res.json(cases);
@@ -84670,7 +83850,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener casos" });
     }
   });
-  app2.post("/api/admin/cases", authenticateToken, requireAdmin, async (req, res) => {
+  app3.post("/api/admin/cases", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const result = caseSchema.safeParse({
         ...req.body,
@@ -84702,7 +83882,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al crear caso" });
     }
   });
-  app2.patch("/api/admin/cases/:id", authenticateToken, requireAdmin, async (req, res) => {
+  app3.patch("/api/admin/cases/:id", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const caseId = parseInt(req.params.id);
       if (isNaN(caseId)) {
@@ -84762,7 +83942,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al actualizar caso" });
     }
   });
-  app2.get("/api/admin/appointments", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/appointments", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const appointments2 = await storage.getAllAppointments();
       res.json(appointments2);
@@ -84771,7 +83951,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener citas" });
     }
   });
-  app2.get("/api/admin/contacts", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/contacts", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const contacts = await storage.getAllContactSubmissions();
       res.json(contacts);
@@ -84780,7 +83960,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener contactos" });
     }
   });
-  app2.get("/api/admin/preparers", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/preparers", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const preparers = await db.select().from(users).where(
         sql`${users.role} IN ('admin', 'preparer')`
@@ -84791,7 +83971,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener preparadores" });
     }
   });
-  app2.get("/api/admin/analytics", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/analytics", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const analytics = await storage.getAnalyticsData();
       res.json(analytics);
@@ -84800,7 +83980,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener analytics" });
     }
   });
-  app2.get("/api/admin/users", authenticateToken, requireAdmin, async (_req, res) => {
+  app3.get("/api/admin/users", authenticateToken, requireAdmin, async (_req, res) => {
     try {
       const allUsers = await storage.getAllUsers();
       res.json(allUsers);
@@ -84809,7 +83989,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al obtener usuarios" });
     }
   });
-  app2.patch("/api/admin/users/:id/status", authenticateToken, requireAdmin, async (req, res) => {
+  app3.patch("/api/admin/users/:id/status", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
       const { isActive } = req.body;
@@ -84829,7 +84009,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al actualizar estado de usuario" });
     }
   });
-  app2.patch("/api/admin/users/:id/role", authenticateToken, requireAdmin, async (req, res) => {
+  app3.patch("/api/admin/users/:id/role", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
       const { role } = req.body;
@@ -84850,7 +84030,7 @@ async function registerRoutes(httpServer2, app2) {
       res.status(500).json({ message: "Error al actualizar rol de usuario" });
     }
   });
-  app2.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin, async (req, res) => {
+  app3.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
       const user = await storage.getUser(userId);
@@ -84890,8 +84070,8 @@ function log2(message, source = "express") {
   console.log(`${formattedTime} [${source}] ${message}`);
 }
 async function createApp(httpServer2) {
-  const app2 = (0, import_express3.default)();
-  app2.use(helmet({
+  const app3 = (0, import_express3.default)();
+  app3.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
@@ -84907,7 +84087,7 @@ async function createApp(httpServer2) {
     },
     crossOriginEmbedderPolicy: false
   }));
-  app2.use((0, import_hpp2.default)());
+  app3.use((0, import_hpp2.default)());
   const globalLimiter2 = rate_limit_default({
     windowMs: 15 * 60 * 1e3,
     max: 100,
@@ -84921,9 +84101,9 @@ async function createApp(httpServer2) {
       return req.path.startsWith("/assets") || req.path.startsWith("/node_modules") || req.path === "/health";
     }
   });
-  app2.use("/api", globalLimiter2);
-  app2.use((0, import_cookie_parser2.default)());
-  app2.use(
+  app3.use("/api", globalLimiter2);
+  app3.use((0, import_cookie_parser2.default)());
+  app3.use(
     import_express3.default.json({
       limit: "10kb",
       verify: (req, _res, buf2) => {
@@ -84931,8 +84111,8 @@ async function createApp(httpServer2) {
       }
     })
   );
-  app2.use(import_express3.default.urlencoded({ extended: false, limit: "10kb" }));
-  app2.use((req, res, next) => {
+  app3.use(import_express3.default.urlencoded({ extended: false, limit: "10kb" }));
+  app3.use((req, res, next) => {
     const start = Date.now();
     const path3 = req.path;
     let capturedJsonResponse = void 0;
@@ -84953,35 +84133,25 @@ async function createApp(httpServer2) {
     });
     next();
   });
-  await registerRoutes(httpServer2, app2);
-  app2.use((err, _req, res, _next) => {
+  await registerRoutes(httpServer2, app3);
+  app3.use((err, _req, res, _next) => {
     const status = err.status || err.statusCode || 500;
     const message = true ? "Error interno del servidor" : err.message || "Internal Server Error";
     log2(`Error: ${err.message}`, "error");
     res.status(status).json({ message });
   });
-  return app2;
+  return app3;
 }
 
 // api/index.ts
-var handler = null;
-async function index_default(req, res) {
-  try {
-    if (!handler) {
-      console.log("[API] Initializing Express app...");
-      const app2 = await createApp(void 0);
-      handler = (0, import_serverless_http.default)(app2);
-      console.log("[API] Express app initialized successfully");
-    }
-    return handler(req, res);
-  } catch (error) {
-    console.error("[API] Error:", error?.message || error);
-    console.error("[API] Stack:", error?.stack);
-    res.status(500).json({
-      message: "Internal Server Error",
-      error: false ? error?.message : void 0
-    });
+var app2 = null;
+async function handler(req, res) {
+  if (!app2) {
+    console.log("[API] Initializing Express app...");
+    app2 = await createApp(void 0);
+    console.log("[API] Express app initialized successfully");
   }
+  return app2(req, res);
 }
 /*! Bundled license information:
 
