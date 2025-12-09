@@ -31,7 +31,7 @@ import { storage } from "./storage";
 import { insertContactSubmissionSchema, users } from "../shared/schema";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import path from "path";
