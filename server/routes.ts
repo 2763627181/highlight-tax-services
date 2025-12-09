@@ -488,12 +488,14 @@ const VALID_CATEGORIES = [
  * @returns Promise<Server> - Servidor HTTP configurado
  */
 export async function registerRoutes(
-  httpServer: Server,
+  httpServer: Server | undefined,
   app: Express
-): Promise<Server> {
+): Promise<Server | undefined> {
   
-  // Inicializar WebSocket para notificaciones en tiempo real
-  wsService.initialize(httpServer);
+  // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
+  if (httpServer) {
+    wsService.initialize(httpServer);
+  }
   
   // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
   await setupAuth(app);
