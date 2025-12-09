@@ -178,6 +178,28 @@ const translations = {
     statusRefundIssued: "Refund Issued",
     admin: "Admin",
     preparer: "Preparer",
+    users: "Users",
+    userManagement: "User Management",
+    userManagementDesc: "View and manage all registered users",
+    role: "Role",
+    active: "Active",
+    inactive: "Inactive",
+    lastLogin: "Last Login",
+    activate: "Activate",
+    deactivate: "Deactivate",
+    resetPassword: "Reset Password",
+    sendResetEmail: "Send Reset Email",
+    resetEmailSent: "Password reset email sent successfully",
+    noUsers: "No users registered",
+    userUpdated: "User updated successfully",
+    confirmDeactivate: "Deactivate User",
+    confirmDeactivateDesc: "Are you sure you want to deactivate this user? They will not be able to log in.",
+    confirmActivate: "Activate User",
+    confirmActivateDesc: "Are you sure you want to activate this user?",
+    cannotDeactivateSelf: "You cannot deactivate your own account",
+    cannotChangeOwnRole: "You cannot change your own role",
+    changeRole: "Change Role",
+    never: "Never",
   },
   es: {
     adminPanel: "Panel Administrativo",
@@ -251,6 +273,28 @@ const translations = {
     statusRefundIssued: "Reembolso Emitido",
     admin: "Admin",
     preparer: "Preparador",
+    users: "Usuarios",
+    userManagement: "Gestión de Usuarios",
+    userManagementDesc: "Ver y gestionar todos los usuarios registrados",
+    role: "Rol",
+    active: "Activo",
+    inactive: "Inactivo",
+    lastLogin: "Último Acceso",
+    activate: "Activar",
+    deactivate: "Desactivar",
+    resetPassword: "Restablecer Contraseña",
+    sendResetEmail: "Enviar Email de Restablecimiento",
+    resetEmailSent: "Email de restablecimiento enviado exitosamente",
+    noUsers: "No hay usuarios registrados",
+    userUpdated: "Usuario actualizado exitosamente",
+    confirmDeactivate: "Desactivar Usuario",
+    confirmDeactivateDesc: "¿Estás seguro de que deseas desactivar este usuario? No podrá iniciar sesión.",
+    confirmActivate: "Activar Usuario",
+    confirmActivateDesc: "¿Estás seguro de que deseas activar este usuario?",
+    cannotDeactivateSelf: "No puedes desactivar tu propia cuenta",
+    cannotChangeOwnRole: "No puedes cambiar tu propio rol",
+    changeRole: "Cambiar Rol",
+    never: "Nunca",
   },
   fr: {
     adminPanel: "Panneau d'Administration",
@@ -324,6 +368,28 @@ const translations = {
     statusRefundIssued: "Remboursement Émis",
     admin: "Admin",
     preparer: "Préparateur",
+    users: "Utilisateurs",
+    userManagement: "Gestion des Utilisateurs",
+    userManagementDesc: "Voir et gérer tous les utilisateurs inscrits",
+    role: "Rôle",
+    active: "Actif",
+    inactive: "Inactif",
+    lastLogin: "Dernière Connexion",
+    activate: "Activer",
+    deactivate: "Désactiver",
+    resetPassword: "Réinitialiser le Mot de Passe",
+    sendResetEmail: "Envoyer Email de Réinitialisation",
+    resetEmailSent: "Email de réinitialisation envoyé avec succès",
+    noUsers: "Aucun utilisateur inscrit",
+    userUpdated: "Utilisateur mis à jour avec succès",
+    confirmDeactivate: "Désactiver l'Utilisateur",
+    confirmDeactivateDesc: "Êtes-vous sûr de vouloir désactiver cet utilisateur? Il ne pourra pas se connecter.",
+    confirmActivate: "Activer l'Utilisateur",
+    confirmActivateDesc: "Êtes-vous sûr de vouloir activer cet utilisateur?",
+    cannotDeactivateSelf: "Vous ne pouvez pas désactiver votre propre compte",
+    cannotChangeOwnRole: "Vous ne pouvez pas modifier votre propre rôle",
+    changeRole: "Modifier le Rôle",
+    never: "Jamais",
   },
   pt: {
     adminPanel: "Painel Administrativo",
@@ -397,6 +463,28 @@ const translations = {
     statusRefundIssued: "Reembolso Emitido",
     admin: "Admin",
     preparer: "Preparador",
+    users: "Usuários",
+    userManagement: "Gestão de Usuários",
+    userManagementDesc: "Ver e gerenciar todos os usuários registrados",
+    role: "Função",
+    active: "Ativo",
+    inactive: "Inativo",
+    lastLogin: "Último Acesso",
+    activate: "Ativar",
+    deactivate: "Desativar",
+    resetPassword: "Redefinir Senha",
+    sendResetEmail: "Enviar Email de Redefinição",
+    resetEmailSent: "Email de redefinição enviado com sucesso",
+    noUsers: "Nenhum usuário registrado",
+    userUpdated: "Usuário atualizado com sucesso",
+    confirmDeactivate: "Desativar Usuário",
+    confirmDeactivateDesc: "Tem certeza de que deseja desativar este usuário? Ele não poderá fazer login.",
+    confirmActivate: "Ativar Usuário",
+    confirmActivateDesc: "Tem certeza de que deseja ativar este usuário?",
+    cannotDeactivateSelf: "Você não pode desativar sua própria conta",
+    cannotChangeOwnRole: "Você não pode alterar sua própria função",
+    changeRole: "Alterar Função",
+    never: "Nunca",
   },
   zh: {
     adminPanel: "管理面板",
@@ -470,6 +558,28 @@ const translations = {
     statusRefundIssued: "退款已发放",
     admin: "管理员",
     preparer: "准备者",
+    users: "用户",
+    userManagement: "用户管理",
+    userManagementDesc: "查看和管理所有注册用户",
+    role: "角色",
+    active: "活跃",
+    inactive: "停用",
+    lastLogin: "上次登录",
+    activate: "激活",
+    deactivate: "停用",
+    resetPassword: "重置密码",
+    sendResetEmail: "发送重置邮件",
+    resetEmailSent: "密码重置邮件已成功发送",
+    noUsers: "没有注册用户",
+    userUpdated: "用户更新成功",
+    confirmDeactivate: "停用用户",
+    confirmDeactivateDesc: "确定要停用此用户吗？他们将无法登录。",
+    confirmActivate: "激活用户",
+    confirmActivateDesc: "确定要激活此用户吗？",
+    cannotDeactivateSelf: "您不能停用自己的账户",
+    cannotChangeOwnRole: "您不能更改自己的角色",
+    changeRole: "更改角色",
+    never: "从未",
   },
   ht: {
     adminPanel: "Panèl Administrasyon",
@@ -543,6 +653,28 @@ const translations = {
     statusRefundIssued: "Ranbousman Emèt",
     admin: "Admin",
     preparer: "Preparatè",
+    users: "Itilizatè",
+    userManagement: "Jesyon Itilizatè",
+    userManagementDesc: "Gade epi jere tout itilizatè ki enskri",
+    role: "Wòl",
+    active: "Aktif",
+    inactive: "Inaktif",
+    lastLogin: "Dènye Koneksyon",
+    activate: "Aktive",
+    deactivate: "Dezaktive",
+    resetPassword: "Reyinisyalize Modpas",
+    sendResetEmail: "Voye Imèl Reyinisyalizasyon",
+    resetEmailSent: "Imèl reyinisyalizasyon modpas voye avèk siksè",
+    noUsers: "Pa gen itilizatè enskri",
+    userUpdated: "Itilizatè mete ajou avèk siksè",
+    confirmDeactivate: "Dezaktive Itilizatè",
+    confirmDeactivateDesc: "Èske ou sèten ou vle dezaktive itilizatè sa? Li pap kapab konekte.",
+    confirmActivate: "Aktive Itilizatè",
+    confirmActivateDesc: "Èske ou sèten ou vle aktive itilizatè sa?",
+    cannotDeactivateSelf: "Ou pa kapab dezaktive pwòp kont ou",
+    cannotChangeOwnRole: "Ou pa kapab chanje pwòp wòl ou",
+    changeRole: "Chanje Wòl",
+    never: "Jamè",
   },
 };
 
@@ -597,6 +729,71 @@ export default function Admin() {
   const { data: contacts, isLoading: contactsLoading } = useQuery<ContactSubmission[]>({
     queryKey: ["/api/admin/contacts"],
     enabled: !!user && (user.role === "admin" || user.role === "preparer"),
+  });
+
+  const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({
+    queryKey: ["/api/admin/users"],
+    enabled: !!user && user.role === "admin",
+  });
+
+  const updateUserStatusMutation = useMutation({
+    mutationFn: async (data: { userId: number; isActive: boolean }) => {
+      return apiRequest("PATCH", `/api/admin/users/${data.userId}/status`, {
+        isActive: data.isActive,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: t.userUpdated,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: t.error,
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateUserRoleMutation = useMutation({
+    mutationFn: async (data: { userId: number; role: string }) => {
+      return apiRequest("PATCH", `/api/admin/users/${data.userId}/role`, {
+        role: data.role,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: t.userUpdated,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: t.error,
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const sendResetEmailMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      return apiRequest("POST", `/api/admin/users/${userId}/reset-password`, {});
+    },
+    onSuccess: () => {
+      toast({
+        title: t.resetEmailSent,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: t.error,
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const updateCaseMutation = useMutation({
@@ -850,6 +1047,10 @@ export default function Admin() {
             <TabsTrigger value="analytics" data-testid="tab-analytics">
               <BarChart3 className="h-4 w-4 mr-2" />
               {t.analytics}
+            </TabsTrigger>
+            <TabsTrigger value="users" data-testid="tab-users">
+              <Settings className="h-4 w-4 mr-2" />
+              {t.users}
             </TabsTrigger>
           </TabsList>
 
@@ -1248,6 +1449,142 @@ export default function Admin() {
 
           <TabsContent value="analytics">
             <AnalyticsDashboard />
+          </TabsContent>
+
+          <TabsContent value="users">
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.userManagement}</CardTitle>
+                <CardDescription>{t.userManagementDesc}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {usersLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(5)].map((_, i) => (
+                      <Skeleton key={i} className="h-16 w-full" />
+                    ))}
+                  </div>
+                ) : allUsers && allUsers.length > 0 ? (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t.name}</TableHead>
+                          <TableHead>{t.email}</TableHead>
+                          <TableHead>{t.role}</TableHead>
+                          <TableHead>{t.status}</TableHead>
+                          <TableHead>{t.lastLogin}</TableHead>
+                          <TableHead>{t.actions}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {allUsers.map((u) => (
+                          <TableRow key={u.id} data-testid={`row-user-${u.id}`}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-8 w-8">
+                                  <AvatarFallback>
+                                    {u.name?.charAt(0).toUpperCase() || "U"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="font-medium">{u.name || "-"}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {u.email || "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={u.role}
+                                onValueChange={(newRole) => {
+                                  if (user?.id === u.id) {
+                                    toast({
+                                      title: t.error,
+                                      description: t.cannotChangeOwnRole,
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
+                                  updateUserRoleMutation.mutate({ userId: u.id, role: newRole });
+                                }}
+                                disabled={user?.id === u.id}
+                              >
+                                <SelectTrigger className="w-[120px]" data-testid={`select-role-${u.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="client">{t.clients}</SelectItem>
+                                  <SelectItem value="preparer">{t.preparer}</SelectItem>
+                                  <SelectItem value="admin">{t.admin}</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                className={
+                                  u.isActive !== false
+                                    ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                                    : "bg-red-500/10 text-red-600 dark:text-red-400"
+                                }
+                              >
+                                {u.isActive !== false ? t.active : t.inactive}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {u.lastLoginAt
+                                ? format(new Date(u.lastLoginAt), "d MMM yyyy HH:mm", {
+                                    locale: getDateLocale(language),
+                                  })
+                                : t.never}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant={u.isActive !== false ? "outline" : "default"}
+                                  onClick={() => {
+                                    if (user?.id === u.id) {
+                                      toast({
+                                        title: t.error,
+                                        description: t.cannotDeactivateSelf,
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    updateUserStatusMutation.mutate({
+                                      userId: u.id,
+                                      isActive: u.isActive === false,
+                                    });
+                                  }}
+                                  disabled={user?.id === u.id || updateUserStatusMutation.isPending}
+                                  data-testid={`button-toggle-status-${u.id}`}
+                                >
+                                  {u.isActive !== false ? t.deactivate : t.activate}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => sendResetEmailMutation.mutate(u.id)}
+                                  disabled={!u.email || sendResetEmailMutation.isPending}
+                                  data-testid={`button-reset-password-${u.id}`}
+                                >
+                                  {t.resetPassword}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                    <p className="text-muted-foreground">{t.noUsers}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 

@@ -62,6 +62,8 @@ import {
   type InsertActivityLog,
   type AuthIdentity,
   type InsertAuthIdentity,
+  type PasswordResetToken,
+  passwordResetTokens,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, count, sum } from "drizzle-orm";
@@ -375,6 +377,51 @@ export interface IStorage {
     casesByYear: { year: number; count: number; amount: number }[];
     recentActivity: { date: string; action: string; details: string }[];
   }>;
+
+  // ---------------------------------------------------------------------------
+  // RECUPERACIÓN DE CONTRASEÑA
+  // ---------------------------------------------------------------------------
+  
+  /**
+   * Crea un token de recuperación de contraseña
+   * @param userId - ID del usuario
+   * @param tokenHash - Hash del token
+   * @param expiresAt - Fecha de expiración
+   * @returns Token creado
+   */
+  createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken>;
+  
+  /**
+   * Obtiene un token de recuperación válido por su hash
+   * @param tokenHash - Hash del token
+   * @returns Token válido o undefined si no existe o expiró
+   */
+  getValidPasswordResetToken(tokenHash: string): Promise<PasswordResetToken | undefined>;
+  
+  /**
+   * Marca un token como usado
+   * @param tokenId - ID del token
+   */
+  markPasswordResetTokenAsUsed(tokenId: number): Promise<void>;
+  
+  /**
+   * Invalida todos los tokens de recuperación de un usuario
+   * @param userId - ID del usuario
+   */
+  invalidateUserPasswordResetTokens(userId: number): Promise<void>;
+  
+  /**
+   * Obtiene todos los usuarios (para admin)
+   * @returns Lista de todos los usuarios
+   */
+  getAllUsers(): Promise<User[]>;
+  
+  /**
+   * Activa o desactiva un usuario
+   * @param userId - ID del usuario
+   * @param isActive - Estado de activación
+   */
+  setUserActiveStatus(userId: number, isActive: boolean): Promise<User | undefined>;
 }
 
 // =============================================================================
@@ -1124,6 +1171,82 @@ export class DatabaseStorage implements IStorage {
       casesByYear,
       recentActivity,
     };
+  }
+
+  // ===========================================================================
+  // OPERACIONES DE RECUPERACIÓN DE CONTRASEÑA
+  // ===========================================================================
+
+  /**
+   * Crea un token de recuperación de contraseña
+   */
+  async createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const [token] = await db
+      .insert(passwordResetTokens)
+      .values({ userId, tokenHash, expiresAt })
+      .returning();
+    return token;
+  }
+
+  /**
+   * Obtiene un token de recuperación válido por su hash
+   */
+  async getValidPasswordResetToken(tokenHash: string): Promise<PasswordResetToken | undefined> {
+    const [token] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.tokenHash, tokenHash),
+          sql`${passwordResetTokens.expiresAt} > NOW()`,
+          sql`${passwordResetTokens.usedAt} IS NULL`
+        )
+      );
+    return token || undefined;
+  }
+
+  /**
+   * Marca un token como usado
+   */
+  async markPasswordResetTokenAsUsed(tokenId: number): Promise<void> {
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokens.id, tokenId));
+  }
+
+  /**
+   * Invalida todos los tokens de recuperación de un usuario
+   */
+  async invalidateUserPasswordResetTokens(userId: number): Promise<void> {
+    await db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(passwordResetTokens.userId, userId),
+          sql`${passwordResetTokens.usedAt} IS NULL`
+        )
+      );
+  }
+
+  /**
+   * Obtiene todos los usuarios
+   */
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.createdAt));
+  }
+
+  /**
+   * Activa o desactiva un usuario
+   */
+  async setUserActiveStatus(userId: number, isActive: boolean): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return user || undefined;
   }
 }
 

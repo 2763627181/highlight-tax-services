@@ -195,6 +195,34 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  lastLoginAt: timestamp("last_login_at"),
+});
+
+// =============================================================================
+// TABLA DE TOKENS DE RECUPERACIÓN DE CONTRASEÑA
+// =============================================================================
+
+/**
+ * Tabla de tokens para recuperación de contraseña
+ * 
+ * Almacena tokens seguros de un solo uso para permitir
+ * a los usuarios restablecer su contraseña via email.
+ * 
+ * @property id - ID único del token
+ * @property userId - Usuario asociado al token
+ * @property tokenHash - Hash del token (nunca almacenar en texto plano)
+ * @property expiresAt - Fecha de expiración (30 minutos desde creación)
+ * @property usedAt - Fecha de uso (null si no ha sido usado)
+ * @property createdAt - Fecha de creación
+ */
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: varchar("token_hash", { length: 255 }).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // =============================================================================
@@ -573,6 +601,14 @@ export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
 });
 
 /**
+ * Esquema de inserción para tokens de recuperación de contraseña
+ */
+export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
+  id: true,
+  createdAt: true,
+});
+
+/**
  * Esquema de validación para login
  * 
  * Valida email y contraseña mínima de 6 caracteres
@@ -642,3 +678,8 @@ export type InsertContactSubmission = z.infer<typeof insertContactSubmissionSche
 export type ActivityLog = typeof activityLogs.$inferSelect;
 /** Tipo para inserción de log de actividad */
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+
+/** Tipo de token de recuperación de contraseña seleccionado */
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+/** Tipo para inserción de token de recuperación */
+export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;

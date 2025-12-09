@@ -44,8 +44,10 @@ import {
   sendWelcomeEmail, 
   sendDocumentUploadNotification, 
   sendCaseStatusUpdate,
-  sendAppointmentConfirmation 
+  sendAppointmentConfirmation,
+  sendPasswordResetEmail
 } from "./email";
+import crypto from "crypto";
 import { wsService } from "./websocket";
 
 // =============================================================================
@@ -778,6 +780,170 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error generando token WS:", error);
       res.status(500).json({ message: "Error al generar token" });
+    }
+  });
+
+  /**
+   * POST /api/auth/forgot-password
+   * 
+   * Inicia el proceso de recuperación de contraseña
+   * Envía un email con enlace seguro para restablecer
+   * 
+   * @body {string} email - Email del usuario
+   * @security Rate limited para prevenir abuso
+   * @sideeffects Envía email con token de recuperación
+   */
+  app.post("/api/auth/forgot-password", authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email || typeof email !== "string") {
+        res.status(400).json({ message: "Email is required" });
+        return;
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+      
+      // Siempre responder con éxito para evitar enumeración de usuarios
+      const genericResponse = { 
+        message: "If an account with that email exists, you will receive a password reset link." 
+      };
+
+      const user = await storage.getUserByEmail(normalizedEmail);
+      
+      if (!user) {
+        // No revelar si el email existe o no
+        res.json(genericResponse);
+        return;
+      }
+
+      // Invalidar tokens anteriores
+      await storage.invalidateUserPasswordResetTokens(user.id);
+
+      // Generar token seguro
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const tokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+      
+      // Token válido por 30 minutos
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      
+      await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
+
+      // Enviar email
+      sendPasswordResetEmail({
+        name: user.name,
+        email: user.email,
+        resetToken: resetToken, // Enviar token sin hash
+        expiresInMinutes: 30,
+      }).catch(console.error);
+
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "password_reset_requested",
+        details: `Password reset requested for ${normalizedEmail}`,
+      });
+
+      res.json(genericResponse);
+    } catch (error) {
+      console.error("Error en forgot-password:", error);
+      res.status(500).json({ message: "Error processing request" });
+    }
+  });
+
+  /**
+   * POST /api/auth/reset-password
+   * 
+   * Restablece la contraseña usando un token válido
+   * 
+   * @body {string} token - Token de recuperación
+   * @body {string} password - Nueva contraseña
+   * @security Token de un solo uso, expira en 30 minutos
+   */
+  app.post("/api/auth/reset-password", authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { token, password } = req.body;
+      
+      if (!token || !password) {
+        res.status(400).json({ message: "Token and password are required" });
+        return;
+      }
+
+      // Validar contraseña
+      if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        res.status(400).json({ message: "Password must be at least 8 characters with uppercase, lowercase, and number" });
+        return;
+      }
+
+      // Hash del token recibido para comparar con la DB
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      
+      const resetToken = await storage.getValidPasswordResetToken(tokenHash);
+      
+      if (!resetToken) {
+        res.status(400).json({ message: "Invalid or expired reset link" });
+        return;
+      }
+
+      // Obtener usuario
+      const user = await storage.getUser(resetToken.userId);
+      
+      if (!user) {
+        res.status(400).json({ message: "User not found" });
+        return;
+      }
+
+      // Hash nueva contraseña
+      const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      
+      // Actualizar contraseña
+      await storage.updateUser(user.id, { password: hashedPassword });
+      
+      // Marcar token como usado
+      await storage.markPasswordResetTokenAsUsed(resetToken.id);
+
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "password_reset_completed",
+        details: `Password reset completed for ${user.email}`,
+      });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Error en reset-password:", error);
+      res.status(500).json({ message: "Error resetting password" });
+    }
+  });
+
+  /**
+   * GET /api/auth/verify-reset-token
+   * 
+   * Verifica si un token de recuperación es válido
+   * 
+   * @query {string} token - Token a verificar
+   */
+  app.get("/api/auth/verify-reset-token", async (req: Request, res: Response) => {
+    try {
+      const { token } = req.query;
+      
+      if (!token || typeof token !== "string") {
+        res.status(400).json({ valid: false, message: "Token is required" });
+        return;
+      }
+
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const resetToken = await storage.getValidPasswordResetToken(tokenHash);
+      
+      if (!resetToken) {
+        res.status(400).json({ valid: false, message: "Invalid or expired token" });
+        return;
+      }
+
+      res.json({ valid: true });
+    } catch (error) {
+      console.error("Error verifying reset token:", error);
+      res.status(500).json({ valid: false, message: "Error verifying token" });
     }
   });
 
@@ -1591,6 +1757,138 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error obteniendo analytics:", error);
       res.status(500).json({ message: "Error al obtener analytics" });
+    }
+  });
+
+  /**
+   * GET /api/admin/users
+   * 
+   * Obtiene la lista completa de usuarios para gestión administrativa
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {User[]} Lista de todos los usuarios
+   */
+  app.get("/api/admin/users", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      res.json(allUsers);
+    } catch (error) {
+      console.error("Error obteniendo usuarios:", error);
+      res.status(500).json({ message: "Error al obtener usuarios" });
+    }
+  });
+
+  /**
+   * PATCH /api/admin/users/:id/status
+   * 
+   * Activa o desactiva un usuario
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @param {boolean} isActive - Estado del usuario
+   * @returns {User} Usuario actualizado
+   */
+  app.patch("/api/admin/users/:id/status", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { isActive } = req.body;
+
+      if (typeof isActive !== "boolean") {
+        return res.status(400).json({ message: "isActive debe ser un booleano" });
+      }
+
+      // Prevent admin from deactivating themselves
+      if (req.user?.id === userId && !isActive) {
+        return res.status(400).json({ message: "No puedes desactivarte a ti mismo" });
+      }
+
+      const updatedUser = await storage.updateUser(userId, { isActive });
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error actualizando estado de usuario:", error);
+      res.status(500).json({ message: "Error al actualizar estado de usuario" });
+    }
+  });
+
+  /**
+   * PATCH /api/admin/users/:id/role
+   * 
+   * Cambia el rol de un usuario
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @param {string} role - Nuevo rol del usuario
+   * @returns {User} Usuario actualizado
+   */
+  app.patch("/api/admin/users/:id/role", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { role } = req.body;
+
+      const validRoles = ["client", "preparer", "admin"];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: "Rol inválido" });
+      }
+
+      // Prevent admin from changing their own role
+      if (req.user?.id === userId) {
+        return res.status(400).json({ message: "No puedes cambiar tu propio rol" });
+      }
+
+      const updatedUser = await storage.updateUser(userId, { role });
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error actualizando rol de usuario:", error);
+      res.status(500).json({ message: "Error al actualizar rol de usuario" });
+    }
+  });
+
+  /**
+   * POST /api/admin/users/:id/reset-password
+   * 
+   * Admin-initiated password reset - sends reset email to user
+   * 
+   * @requires authenticateToken, requireAdmin
+   * @returns {object} Mensaje de confirmación
+   */
+  app.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const user = await storage.getUser(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "Usuario no encontrado" });
+      }
+
+      if (!user.email) {
+        return res.status(400).json({ message: "El usuario no tiene email registrado" });
+      }
+
+      // Generate password reset token
+      const token = crypto.randomBytes(32).toString("hex");
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+
+      await storage.createPasswordResetToken({
+        userId: user.id,
+        tokenHash,
+        expiresAt,
+      });
+
+      // Send password reset email
+      const resetUrl = `${process.env.VITE_APP_URL || "https://highlighttax.com"}/reset-password?token=${token}`;
+      await sendPasswordResetEmail(user.email, user.name || "Usuario", resetUrl);
+
+      res.json({ message: "Email de restablecimiento enviado" });
+    } catch (error) {
+      console.error("Error enviando email de restablecimiento:", error);
+      res.status(500).json({ message: "Error al enviar email de restablecimiento" });
     }
   });
 

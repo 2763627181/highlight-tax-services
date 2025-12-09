@@ -502,6 +502,90 @@ export async function sendCaseStatusUpdate(data: {
  * 
  * @returns true si se enviaron los emails correctamente, false si hubo error
  */
+/**
+ * Envía email de recuperación de contraseña
+ * 
+ * Envía un enlace seguro de un solo uso para restablecer
+ * la contraseña del usuario.
+ * 
+ * @param data - Datos para el email de recuperación
+ * @param data.name - Nombre del usuario
+ * @param data.email - Email del usuario
+ * @param data.resetToken - Token único de recuperación
+ * @param data.expiresInMinutes - Tiempo de expiración en minutos
+ * 
+ * @returns true si se envió correctamente, false si hubo error
+ */
+export async function sendPasswordResetEmail(data: {
+  name: string;
+  email: string;
+  resetToken: string;
+  expiresInMinutes: number;
+}): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    
+    const baseUrl = process.env.VITE_APP_URL || process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'https://highlighttax.com';
+    
+    const resetLink = `${baseUrl}/reset-password?token=${data.resetToken}`;
+    
+    await client.emails.send({
+      from: fromEmail,
+      to: data.email,
+      subject: 'Password Reset Request / Solicitud de Restablecimiento de Contraseña',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          ${getEmailHeader()}
+          
+          <div style="padding: 30px;">
+            <h2 style="color: #0A3D62;">Password Reset / Restablecer Contraseña</h2>
+            
+            <p>Hello / Hola, ${data.name}!</p>
+            
+            <p>You requested to reset your password. Click the button below to set a new password.</p>
+            <p>Has solicitado restablecer tu contraseña. Haz clic en el botón de abajo para establecer una nueva contraseña.</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetLink}" style="background: #0A3D62; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                Reset Password / Restablecer Contraseña
+              </a>
+            </div>
+            
+            <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p style="margin: 0; color: #856404;">
+                <strong>This link expires in ${data.expiresInMinutes} minutes.</strong><br>
+                <strong>Este enlace expira en ${data.expiresInMinutes} minutos.</strong>
+              </p>
+            </div>
+            
+            <p style="color: #666; font-size: 14px;">
+              If you didn't request this password reset, you can safely ignore this email.<br>
+              Si no solicitaste este restablecimiento de contraseña, puedes ignorar este email de forma segura.
+            </p>
+            
+            <p style="color: #666; font-size: 12px; margin-top: 20px;">
+              If the button doesn't work, copy and paste this link into your browser:<br>
+              <a href="${resetLink}" style="color: #0A3D62;">${resetLink}</a>
+            </p>
+            
+            ${getContactInfo()}
+          </div>
+          
+          ${getEmailFooter()}
+        </div>
+      `,
+    });
+    
+    console.log('[email] Password reset email sent to:', data.email);
+    return true;
+  } catch (error) {
+    console.error('[email] Failed to send password reset email:', error);
+    return false;
+  }
+}
+
 export async function sendAppointmentConfirmation(data: {
   clientName: string;
   clientEmail: string;

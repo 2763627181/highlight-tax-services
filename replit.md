@@ -61,6 +61,7 @@ shared/
 - **users**: User accounts (admin, preparer, client roles) with extended profile fields (address, SSN, DOB)
 - **authIdentities**: OAuth identity mappings (links OAuth providers to user accounts)
 - **sessions**: Session storage for OAuth authentication
+- **passwordResetTokens**: Secure password reset tokens (SHA-256 hashed, 30-min expiry, single-use)
 - **taxCases**: Tax filing cases with status tracking
 - **documents**: Uploaded files with categories (W-2, 1099, ID, receipts, bank statements, etc.)
 - **appointments**: Scheduled client appointments
@@ -86,6 +87,9 @@ shared/
 - `POST /api/auth/login` - User login
 - `GET /api/auth/me` - Get current user
 - `POST /api/auth/logout` - Logout
+- `POST /api/auth/forgot-password` - Request password reset email (rate limited: 5/hour)
+- `GET /api/auth/verify-reset-token` - Verify password reset token validity
+- `POST /api/auth/reset-password` - Reset password with valid token
 - `GET /api/login` - OAuth login via Replit Auth (Google, GitHub, Apple)
 - `GET /api/callback` - OAuth callback handler
 - `GET /api/@me` - Get OAuth user info
@@ -108,6 +112,10 @@ shared/
 - `GET /api/admin/appointments` - All appointments
 - `GET /api/admin/documents` - All documents
 - `GET /api/admin/contacts` - Contact submissions
+- `GET /api/admin/users` - Get all users (admin only)
+- `PATCH /api/admin/users/:id/status` - Update user active/inactive status
+- `PATCH /api/admin/users/:id/role` - Change user role (client/preparer/admin)
+- `POST /api/admin/users/:id/reset-password` - Send password reset email to user
 
 ### Public Routes
 - `POST /api/contact` - Submit contact form
@@ -149,6 +157,7 @@ shared/
    - Appointment management
    - Statistics overview
    - Contact submissions management
+   - User management (admin only): view all users, activate/deactivate accounts, change roles, send password reset emails
 
 4. **Security** (See SECURITY.md for details)
    - Password strength validation (8+ chars, uppercase, lowercase, number)

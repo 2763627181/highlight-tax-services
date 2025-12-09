@@ -52,6 +52,10 @@ export default function Portal() {
   const [activeTab, setActiveTab] = useState<string>("login");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotEmailSent, setForgotEmailSent] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const content = {
     en: {
@@ -93,6 +97,20 @@ export default function Portal() {
       pwdReqUppercase: "One uppercase letter",
       pwdReqLowercase: "One lowercase letter",
       pwdReqNumber: "One number",
+      errorEmailExists: "This email is already registered. Try logging in instead.",
+      errorInvalidCredentials: "Invalid email or password. Please try again.",
+      errorPhoneFormat: "Enter a valid phone number (10-15 digits)",
+      errorNameRequired: "Please enter your full name",
+      errorEmailRequired: "Please enter your email address",
+      errorPasswordRequired: "Please enter a password",
+      errorConfirmRequired: "Please confirm your password",
+      errorNetworkError: "Connection error. Please check your internet and try again.",
+      forgotPassword: "Forgot your password?",
+      forgotPasswordEmailSent: "If an account with that email exists, you will receive a password reset link.",
+      forgotPasswordTitle: "Reset Password",
+      forgotPasswordDesc: "Enter your email and we'll send you a link to reset your password.",
+      sendResetLink: "Send Reset Link",
+      backToLogin: "Back to Login",
     },
     es: {
       title: "Portal de Clientes",
@@ -133,6 +151,20 @@ export default function Portal() {
       pwdReqUppercase: "Una letra mayúscula",
       pwdReqLowercase: "Una letra minúscula",
       pwdReqNumber: "Un número",
+      errorEmailExists: "Este correo ya está registrado. Intenta iniciar sesión.",
+      errorInvalidCredentials: "Correo o contraseña incorrectos. Inténtalo de nuevo.",
+      errorPhoneFormat: "Ingresa un número de teléfono válido (10-15 dígitos)",
+      errorNameRequired: "Por favor ingresa tu nombre completo",
+      errorEmailRequired: "Por favor ingresa tu correo electrónico",
+      errorPasswordRequired: "Por favor ingresa una contraseña",
+      errorConfirmRequired: "Por favor confirma tu contraseña",
+      errorNetworkError: "Error de conexión. Verifica tu internet e intenta de nuevo.",
+      forgotPassword: "¿Olvidaste tu contraseña?",
+      forgotPasswordEmailSent: "Si existe una cuenta con ese correo, recibirás un enlace para restablecer tu contraseña.",
+      forgotPasswordTitle: "Restablecer Contraseña",
+      forgotPasswordDesc: "Ingresa tu correo y te enviaremos un enlace para restablecer tu contraseña.",
+      sendResetLink: "Enviar Enlace",
+      backToLogin: "Volver al Inicio de Sesión",
     },
     fr: {
       title: "Portail Client",
@@ -173,6 +205,20 @@ export default function Portal() {
       pwdReqUppercase: "Une lettre majuscule",
       pwdReqLowercase: "Une lettre minuscule",
       pwdReqNumber: "Un chiffre",
+      errorEmailExists: "Cet email est déjà enregistré. Essayez de vous connecter.",
+      errorInvalidCredentials: "Email ou mot de passe invalide. Veuillez réessayer.",
+      errorPhoneFormat: "Entrez un numéro de téléphone valide (10-15 chiffres)",
+      errorNameRequired: "Veuillez entrer votre nom complet",
+      errorEmailRequired: "Veuillez entrer votre adresse email",
+      errorPasswordRequired: "Veuillez entrer un mot de passe",
+      errorConfirmRequired: "Veuillez confirmer votre mot de passe",
+      errorNetworkError: "Erreur de connexion. Vérifiez votre internet et réessayez.",
+      forgotPassword: "Mot de passe oublié ?",
+      forgotPasswordEmailSent: "Si un compte avec cet email existe, vous recevrez un lien de réinitialisation.",
+      forgotPasswordTitle: "Réinitialiser le Mot de Passe",
+      forgotPasswordDesc: "Entrez votre email et nous vous enverrons un lien pour réinitialiser votre mot de passe.",
+      sendResetLink: "Envoyer le Lien",
+      backToLogin: "Retour à la Connexion",
     },
     pt: {
       title: "Portal do Cliente",
@@ -213,6 +259,20 @@ export default function Portal() {
       pwdReqUppercase: "Uma letra maiúscula",
       pwdReqLowercase: "Uma letra minúscula",
       pwdReqNumber: "Um número",
+      errorEmailExists: "Este email já está registrado. Tente fazer login.",
+      errorInvalidCredentials: "Email ou senha inválidos. Por favor, tente novamente.",
+      errorPhoneFormat: "Digite um número de telefone válido (10-15 dígitos)",
+      errorNameRequired: "Por favor, digite seu nome completo",
+      errorEmailRequired: "Por favor, digite seu endereço de email",
+      errorPasswordRequired: "Por favor, digite uma senha",
+      errorConfirmRequired: "Por favor, confirme sua senha",
+      errorNetworkError: "Erro de conexão. Verifique sua internet e tente novamente.",
+      forgotPassword: "Esqueceu sua senha?",
+      forgotPasswordEmailSent: "Se existir uma conta com esse email, você receberá um link para redefinir sua senha.",
+      forgotPasswordTitle: "Redefinir Senha",
+      forgotPasswordDesc: "Digite seu email e enviaremos um link para redefinir sua senha.",
+      sendResetLink: "Enviar Link",
+      backToLogin: "Voltar ao Login",
     },
     zh: {
       title: "客户门户",
@@ -253,6 +313,20 @@ export default function Portal() {
       pwdReqUppercase: "一个大写字母",
       pwdReqLowercase: "一个小写字母",
       pwdReqNumber: "一个数字",
+      errorEmailExists: "此邮箱已注册。请尝试登录。",
+      errorInvalidCredentials: "邮箱或密码无效。请重试。",
+      errorPhoneFormat: "请输入有效的电话号码（10-15位数字）",
+      errorNameRequired: "请输入您的全名",
+      errorEmailRequired: "请输入您的电子邮件地址",
+      errorPasswordRequired: "请输入密码",
+      errorConfirmRequired: "请确认您的密码",
+      errorNetworkError: "连接错误。请检查您的网络并重试。",
+      forgotPassword: "忘记密码？",
+      forgotPasswordEmailSent: "如果存在该邮箱的账户，您将收到密码重置链接。",
+      forgotPasswordTitle: "重置密码",
+      forgotPasswordDesc: "输入您的邮箱，我们将发送重置密码的链接。",
+      sendResetLink: "发送链接",
+      backToLogin: "返回登录",
     },
     ht: {
       title: "Pòtay Kliyan",
@@ -293,6 +367,20 @@ export default function Portal() {
       pwdReqUppercase: "Yon lèt majiskil",
       pwdReqLowercase: "Yon lèt miniskil",
       pwdReqNumber: "Yon nimewo",
+      errorEmailExists: "Imèl sa a deja anrejistre. Eseye konekte.",
+      errorInvalidCredentials: "Imèl oswa modpas pa valid. Tanpri eseye ankò.",
+      errorPhoneFormat: "Antre yon nimewo telefòn valid (10-15 chif)",
+      errorNameRequired: "Tanpri antre non konplè ou",
+      errorEmailRequired: "Tanpri antre adrès imèl ou",
+      errorPasswordRequired: "Tanpri antre yon modpas",
+      errorConfirmRequired: "Tanpri konfime modpas ou",
+      errorNetworkError: "Erè koneksyon. Tcheke entènèt ou epi eseye ankò.",
+      forgotPassword: "Ou bliye modpas ou?",
+      forgotPasswordEmailSent: "Si yon kont ak imèl sa a egziste, ou pral resevwa yon lyen pou reyinisyalize.",
+      forgotPasswordTitle: "Reyinisyalize Modpas",
+      forgotPasswordDesc: "Antre imèl ou epi nou pral voye yon lyen pou reyinisyalize modpas ou.",
+      sendResetLink: "Voye Lyen",
+      backToLogin: "Retounen nan Koneksyon",
     },
   };
 
@@ -353,6 +441,21 @@ export default function Portal() {
     return null;
   }
 
+  const getErrorMessage = (error: unknown): string => {
+    if (!(error instanceof Error)) return currentContent.errorNetworkError;
+    const msg = error.message.toLowerCase();
+    if (msg.includes("invalid") || msg.includes("incorrect") || msg.includes("wrong")) {
+      return currentContent.errorInvalidCredentials;
+    }
+    if (msg.includes("already") || msg.includes("exists") || msg.includes("duplicate")) {
+      return currentContent.errorEmailExists;
+    }
+    if (msg.includes("network") || msg.includes("fetch") || msg.includes("connection")) {
+      return currentContent.errorNetworkError;
+    }
+    return error.message;
+  };
+
   const onLogin = async (data: LoginFormData) => {
     setIsSubmitting(true);
     try {
@@ -364,7 +467,7 @@ export default function Portal() {
     } catch (error) {
       toast({
         title: currentContent.errorTitle,
-        description: error instanceof Error ? error.message : currentContent.loginError,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -388,7 +491,7 @@ export default function Portal() {
     } catch (error) {
       toast({
         title: currentContent.errorTitle,
-        description: error instanceof Error ? error.message : currentContent.registerError,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
@@ -403,10 +506,43 @@ export default function Portal() {
     } catch (error) {
       toast({
         title: currentContent.errorTitle,
-        description: error instanceof Error ? error.message : currentContent.loginError,
+        description: getErrorMessage(error),
         variant: "destructive",
       });
       setIsOAuthLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    
+    setIsSendingReset(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      
+      if (res.ok) {
+        setForgotEmailSent(true);
+      } else {
+        const data = await res.json();
+        toast({
+          title: currentContent.errorTitle,
+          description: data.message || currentContent.errorNetworkError,
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: currentContent.errorTitle,
+        description: currentContent.errorNetworkError,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -495,8 +631,83 @@ export default function Portal() {
                           currentContent.loginButton
                         )}
                       </Button>
+
+                      <div className="text-center mt-3">
+                        <button
+                          type="button"
+                          className="text-sm text-primary hover:underline"
+                          onClick={() => setShowForgotPassword(true)}
+                          data-testid="link-forgot-password"
+                        >
+                          {currentContent.forgotPassword}
+                        </button>
+                      </div>
                     </form>
                   </Form>
+
+                  {showForgotPassword && (
+                    <div className="mt-6 p-4 border rounded-md bg-muted/50">
+                      {!forgotEmailSent ? (
+                        <>
+                          <h3 className="font-semibold mb-2">{currentContent.forgotPasswordTitle}</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {currentContent.forgotPasswordDesc}
+                          </p>
+                          <form onSubmit={handleForgotPassword} className="space-y-4">
+                            <Input
+                              type="email"
+                              value={forgotEmail}
+                              onChange={(e) => setForgotEmail(e.target.value)}
+                              placeholder={currentContent.emailPlaceholder}
+                              required
+                              data-testid="input-forgot-email"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                type="submit"
+                                className="flex-1"
+                                disabled={isSendingReset}
+                                data-testid="button-send-reset"
+                              >
+                                {isSendingReset ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  currentContent.sendResetLink
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  setShowForgotPassword(false);
+                                  setForgotEmail("");
+                                }}
+                                data-testid="button-back-to-login"
+                              >
+                                {currentContent.backToLogin}
+                              </Button>
+                            </div>
+                          </form>
+                        </>
+                      ) : (
+                        <div className="text-center py-4">
+                          <Check className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                          <p className="text-sm">{currentContent.forgotPasswordEmailSent}</p>
+                          <button
+                            className="mt-2 text-sm text-primary hover:underline"
+                            onClick={() => {
+                              setShowForgotPassword(false);
+                              setForgotEmailSent(false);
+                              setForgotEmail("");
+                            }}
+                            data-testid="button-back-after-sent"
+                          >
+                            {currentContent.backToLogin}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
@@ -588,7 +799,8 @@ export default function Portal() {
                             <FormLabel>{currentContent.phone}</FormLabel>
                             <FormControl>
                               <Input
-                                type="tel"
+                                type="text"
+                                inputMode="tel"
                                 placeholder={currentContent.phonePlaceholder}
                                 {...field}
                                 data-testid="input-register-phone"
