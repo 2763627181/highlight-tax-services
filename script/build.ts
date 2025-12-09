@@ -1,6 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile, mkdir } from "fs/promises";
+import { rm, readFile, mkdir, copyFile, writeFile } from "fs/promises";
 
 const allowlist = [
   "@google/generative-ai",
@@ -66,13 +66,12 @@ async function buildAll() {
   });
 
   console.log("building Vercel API handler...");
-  await mkdir("dist/api", { recursive: true });
   await esbuild({
     entryPoints: ["api/index.ts"],
     platform: "node",
     bundle: true,
     format: "esm",
-    outfile: "dist/api/index.mjs",
+    outfile: "api/handler.mjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
