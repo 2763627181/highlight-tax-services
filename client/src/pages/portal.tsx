@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, LogIn, UserPlus, FileText } from "lucide-react";
+import { Loader2, LogIn, UserPlus, FileText, Check, X } from "lucide-react";
 import { SiGoogle, SiGithub, SiApple } from "react-icons/si";
 
 type LoginFormData = {
@@ -85,9 +85,14 @@ export default function Portal() {
       loginError: "Error logging in",
       registerError: "Error registering",
       validationEmail: "Enter a valid email address",
-      validationPassword: "Password must be at least 6 characters",
+      validationPassword: "Password must meet all requirements",
       validationName: "Name must be at least 2 characters",
       validationPasswordMatch: "Passwords do not match",
+      pwdReqTitle: "Password requirements:",
+      pwdReq8Chars: "At least 8 characters",
+      pwdReqUppercase: "One uppercase letter",
+      pwdReqLowercase: "One lowercase letter",
+      pwdReqNumber: "One number",
     },
     es: {
       title: "Portal de Clientes",
@@ -120,9 +125,14 @@ export default function Portal() {
       loginError: "Error al iniciar sesión",
       registerError: "Error al registrarse",
       validationEmail: "Ingresa un correo electrónico válido",
-      validationPassword: "La contraseña debe tener al menos 6 caracteres",
+      validationPassword: "La contraseña debe cumplir todos los requisitos",
       validationName: "El nombre debe tener al menos 2 caracteres",
       validationPasswordMatch: "Las contraseñas no coinciden",
+      pwdReqTitle: "Requisitos de contraseña:",
+      pwdReq8Chars: "Al menos 8 caracteres",
+      pwdReqUppercase: "Una letra mayúscula",
+      pwdReqLowercase: "Una letra minúscula",
+      pwdReqNumber: "Un número",
     },
     fr: {
       title: "Portail Client",
@@ -155,9 +165,14 @@ export default function Portal() {
       loginError: "Erreur de connexion",
       registerError: "Erreur d'inscription",
       validationEmail: "Entrez une adresse email valide",
-      validationPassword: "Le mot de passe doit contenir au moins 6 caractères",
+      validationPassword: "Le mot de passe doit répondre à toutes les exigences",
       validationName: "Le nom doit contenir au moins 2 caractères",
       validationPasswordMatch: "Les mots de passe ne correspondent pas",
+      pwdReqTitle: "Exigences du mot de passe:",
+      pwdReq8Chars: "Au moins 8 caractères",
+      pwdReqUppercase: "Une lettre majuscule",
+      pwdReqLowercase: "Une lettre minuscule",
+      pwdReqNumber: "Un chiffre",
     },
     pt: {
       title: "Portal do Cliente",
@@ -190,9 +205,14 @@ export default function Portal() {
       loginError: "Erro ao entrar",
       registerError: "Erro ao registrar",
       validationEmail: "Digite um endereço de email válido",
-      validationPassword: "A senha deve ter pelo menos 6 caracteres",
+      validationPassword: "A senha deve atender a todos os requisitos",
       validationName: "O nome deve ter pelo menos 2 caracteres",
       validationPasswordMatch: "As senhas não coincidem",
+      pwdReqTitle: "Requisitos da senha:",
+      pwdReq8Chars: "Pelo menos 8 caracteres",
+      pwdReqUppercase: "Uma letra maiúscula",
+      pwdReqLowercase: "Uma letra minúscula",
+      pwdReqNumber: "Um número",
     },
     zh: {
       title: "客户门户",
@@ -225,9 +245,14 @@ export default function Portal() {
       loginError: "登录错误",
       registerError: "注册错误",
       validationEmail: "请输入有效的电子邮件地址",
-      validationPassword: "密码至少需要6个字符",
+      validationPassword: "密码必须满足所有要求",
       validationName: "姓名至少需要2个字符",
       validationPasswordMatch: "密码不匹配",
+      pwdReqTitle: "密码要求：",
+      pwdReq8Chars: "至少8个字符",
+      pwdReqUppercase: "一个大写字母",
+      pwdReqLowercase: "一个小写字母",
+      pwdReqNumber: "一个数字",
     },
     ht: {
       title: "Pòtay Kliyan",
@@ -260,9 +285,14 @@ export default function Portal() {
       loginError: "Erè nan koneksyon",
       registerError: "Erè nan enskripsyon",
       validationEmail: "Antre yon adrès imèl valid",
-      validationPassword: "Modpas la dwe gen omwen 6 karaktè",
+      validationPassword: "Modpas la dwe ranpli tout egzijans yo",
       validationName: "Non an dwe gen omwen 2 karaktè",
       validationPasswordMatch: "Modpas yo pa matche",
+      pwdReqTitle: "Egzijans modpas:",
+      pwdReq8Chars: "Omwen 8 karaktè",
+      pwdReqUppercase: "Yon lèt majiskil",
+      pwdReqLowercase: "Yon lèt miniskil",
+      pwdReqNumber: "Yon nimewo",
     },
   };
 
@@ -277,7 +307,11 @@ export default function Portal() {
     name: z.string().min(2, currentContent.validationName),
     email: z.string().email(currentContent.validationEmail),
     phone: z.string().optional(),
-    password: z.string().min(6, currentContent.validationPassword),
+    password: z.string()
+      .min(8, currentContent.validationPassword)
+      .regex(/[A-Z]/, currentContent.validationPassword)
+      .regex(/[a-z]/, currentContent.validationPassword)
+      .regex(/[0-9]/, currentContent.validationPassword),
     confirmPassword: z.string(),
   }).refine((data) => data.password === data.confirmPassword, {
     message: currentContent.validationPasswordMatch,
@@ -293,6 +327,14 @@ export default function Portal() {
     resolver: zodResolver(registerSchema),
     defaultValues: { name: "", email: "", phone: "", password: "", confirmPassword: "" },
   });
+
+  const passwordValue = registerForm.watch("password") || "";
+  const passwordChecks = {
+    minLength: passwordValue.length >= 8,
+    hasUppercase: /[A-Z]/.test(passwordValue),
+    hasLowercase: /[a-z]/.test(passwordValue),
+    hasNumber: /[0-9]/.test(passwordValue),
+  };
 
   if (authLoading) {
     return (
@@ -571,6 +613,27 @@ export default function Portal() {
                                 data-testid="input-register-password"
                               />
                             </FormControl>
+                            <div className="mt-2 space-y-1 text-sm">
+                              <p className="text-muted-foreground font-medium">{currentContent.pwdReqTitle}</p>
+                              <div className="grid grid-cols-2 gap-1">
+                                <div className={`flex items-center gap-1.5 ${passwordChecks.minLength ? 'text-green-600 dark:text-green-500' : 'text-muted-foreground'}`}>
+                                  {passwordChecks.minLength ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                                  <span>{currentContent.pwdReq8Chars}</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${passwordChecks.hasUppercase ? 'text-green-600 dark:text-green-500' : 'text-muted-foreground'}`}>
+                                  {passwordChecks.hasUppercase ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                                  <span>{currentContent.pwdReqUppercase}</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${passwordChecks.hasLowercase ? 'text-green-600 dark:text-green-500' : 'text-muted-foreground'}`}>
+                                  {passwordChecks.hasLowercase ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                                  <span>{currentContent.pwdReqLowercase}</span>
+                                </div>
+                                <div className={`flex items-center gap-1.5 ${passwordChecks.hasNumber ? 'text-green-600 dark:text-green-500' : 'text-muted-foreground'}`}>
+                                  {passwordChecks.hasNumber ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                                  <span>{currentContent.pwdReqNumber}</span>
+                                </div>
+                              </div>
+                            </div>
                             <FormMessage />
                           </FormItem>
                         )}
