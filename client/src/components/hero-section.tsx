@@ -20,37 +20,37 @@ export function HeroSection() {
 
   const stats = {
     en: [
-      { value: "10+", label: "Years of Experience" },
+      { value: "18+", label: "Years of Experience" },
       { value: "5000+", label: "Satisfied Clients" },
       { value: "98%", label: "Success Rate" },
       { value: "24h", label: "Fast Response" },
     ],
     es: [
-      { value: "10+", label: "Años de Experiencia" },
+      { value: "18+", label: "Años de Experiencia" },
       { value: "5000+", label: "Clientes Satisfechos" },
       { value: "98%", label: "Tasa de Éxito" },
       { value: "24h", label: "Respuesta Rápida" },
     ],
     fr: [
-      { value: "10+", label: "Années d'Expérience" },
+      { value: "18+", label: "Années d'Expérience" },
       { value: "5000+", label: "Clients Satisfaits" },
       { value: "98%", label: "Taux de Réussite" },
       { value: "24h", label: "Réponse Rapide" },
     ],
     pt: [
-      { value: "10+", label: "Anos de Experiência" },
+      { value: "18+", label: "Anos de Experiência" },
       { value: "5000+", label: "Clientes Satisfeitos" },
       { value: "98%", label: "Taxa de Sucesso" },
       { value: "24h", label: "Resposta Rápida" },
     ],
     zh: [
-      { value: "10+", label: "年经验" },
+      { value: "18+", label: "年经验" },
       { value: "5000+", label: "满意客户" },
       { value: "98%", label: "成功率" },
       { value: "24h", label: "快速响应" },
     ],
     ht: [
-      { value: "10+", label: "Ane Eksperyans" },
+      { value: "18+", label: "Ane Eksperyans" },
       { value: "5000+", label: "Kliyan Satisfè" },
       { value: "98%", label: "To Siksè" },
       { value: "24h", label: "Repons Rapid" },
@@ -76,12 +76,12 @@ export function HeroSection() {
   };
 
   const heroDescription = {
-    en: "Certified preparers with over 10 years of experience. Personalized service in English and Spanish for employees, business owners, and self-employed individuals.",
-    es: "Preparadores certificados con más de 10 años de experiencia. Servicio personalizado en inglés y español para empleados, dueños de negocios y trabajadores independientes.",
-    fr: "Préparateurs certifiés avec plus de 10 ans d'expérience. Service personnalisé en anglais et espagnol pour employés, propriétaires d'entreprise et travailleurs indépendants.",
-    pt: "Preparadores certificados com mais de 10 anos de experiência. Serviço personalizado em inglês e espanhol para funcionários, donos de negócios e autônomos.",
-    zh: "拥有超过10年经验的认证准备者。为员工、企业主和自雇人士提供英语和西班牙语的个性化服务。",
-    ht: "Preparatè sètifye ak plis pase 10 ane eksperyans. Sèvis pèsonalize an Angle ak Panyòl pou anplwaye, pwopriyetè biznis ak travayè endepandan.",
+    en: "Certified preparers with over 18 years of experience. Personalized service in English and Spanish for employees, business owners, and self-employed individuals.",
+    es: "Preparadores certificados con más de 18 años de experiencia. Servicio personalizado en inglés y español para empleados, dueños de negocios y trabajadores independientes.",
+    fr: "Préparateurs certifiés avec plus de 18 ans d'expérience. Service personnalisé en anglais et espagnol pour employés, propriétaires d'entreprise et travailleurs indépendants.",
+    pt: "Preparadores certificados com mais de 18 anos de experiência. Serviço personalizado em inglês e espanhol para funcionários, donos de negócios e autônomos.",
+    zh: "拥有超过18年经验的认证准备者。为员工、企业主和自雇人士提供英语和西班牙语的个性化服务。",
+    ht: "Preparatè sètifye ak plis pase 18 ane eksperyans. Sèvis pèsonalize an Angle ak Panyòl pou anplwaye, pwopriyetè biznis ak travayè endepandan.",
   };
 
   const scheduleButton = {
