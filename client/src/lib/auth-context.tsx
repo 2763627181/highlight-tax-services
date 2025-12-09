@@ -56,6 +56,8 @@ interface AuthContextType {
   wsConnected: boolean;
   /** Inicia sesión con email y contraseña */
   login: (email: string, password: string) => Promise<void>;
+  /** Inicia sesión con proveedor OAuth (Google, GitHub, Apple) */
+  loginWithOAuth: (data: OAuthLoginData) => Promise<void>;
   /** Registra un nuevo usuario cliente */
   register: (data: RegisterData) => Promise<void>;
   /** Cierra la sesión actual */
@@ -77,6 +79,13 @@ interface RegisterData {
   password: string;
   name: string;
   phone?: string;
+}
+
+interface OAuthLoginData {
+  email: string;
+  name: string;
+  provider: string;
+  providerId: string;
 }
 
 /**
@@ -274,8 +283,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithOAuth = async (data: OAuthLoginData) => {
+    const response = await fetch("/api/auth/oauth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Error al iniciar sesión con OAuth");
+    }
+
+    const result = await response.json();
+    setUser(result.user);
+    fetchWsToken();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, wsConnected, login, register, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, isLoading, wsConnected, login, loginWithOAuth, register, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

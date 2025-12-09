@@ -10,6 +10,7 @@ import Home from "@/pages/home";
 import Portal from "@/pages/portal";
 import Dashboard from "@/pages/dashboard";
 import Admin from "@/pages/admin";
+import AuthCallback from "@/pages/auth-callback";
 import PrivacyPolicy from "@/pages/privacy-policy";
 import Terms from "@/pages/terms";
 import Policies from "@/pages/policies";
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/portal" component={Portal} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/admin" component={Admin} />
+      <Route path="/auth/callback" component={AuthCallback} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms" component={Terms} />
       <Route path="/policies" component={Policies} />

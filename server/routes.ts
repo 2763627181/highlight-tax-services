@@ -682,6 +682,82 @@ export async function registerRoutes(
   });
 
   /**
+   * POST /api/auth/oauth
+   * 
+   * Autentica o registra un usuario via OAuth (Google, GitHub, Apple)
+   * 
+   * @body {string} email - Email del usuario OAuth
+   * @body {string} name - Nombre del usuario
+   * @body {string} provider - Proveedor OAuth (google, github, apple)
+   * @body {string} providerId - ID único del proveedor
+   * 
+   * @returns {object} Usuario autenticado
+   * @sets Cookie 'token' con JWT válido por 7 días
+   */
+  app.post("/api/auth/oauth", authLimiter, async (req: Request, res: Response) => {
+    try {
+      const { email, name, provider, providerId } = req.body;
+
+      if (!email || !name || !provider || !providerId) {
+        res.status(400).json({ message: "Datos OAuth incompletos" });
+        return;
+      }
+
+      const normalizedEmail = email.toLowerCase().trim();
+
+      // Buscar usuario existente por email
+      let user = await storage.getUserByEmail(normalizedEmail);
+
+      if (!user) {
+        // Crear nuevo usuario con contraseña aleatoria (no usable para login tradicional)
+        const randomPassword = Math.random().toString(36).slice(-16) + "A1!";
+        const hashedPassword = await bcrypt.hash(randomPassword, BCRYPT_ROUNDS);
+
+        user = await storage.createUser({
+          email: normalizedEmail,
+          password: hashedPassword,
+          name,
+          role: "client",
+        });
+
+        // Registrar actividad
+        await storage.createActivityLog({
+          userId: user.id,
+          action: "user_registered_oauth",
+          details: `Nuevo usuario OAuth registrado via ${provider}: ${normalizedEmail}`,
+        });
+
+        // Enviar email de bienvenida
+        sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
+      } else {
+        // Registrar login OAuth
+        await storage.createActivityLog({
+          userId: user.id,
+          action: "user_login_oauth",
+          details: `Usuario inició sesión via ${provider}: ${normalizedEmail}`,
+        });
+      }
+
+      // Generar token JWT
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role, name: user.name },
+        JWT_SECRET,
+        { expiresIn: `${TOKEN_EXPIRY_DAYS}d` }
+      );
+
+      // Establecer cookie segura
+      res.cookie("token", token, COOKIE_OPTIONS);
+
+      res.json({
+        user: { id: user.id, email: user.email, role: user.role, name: user.name },
+      });
+    } catch (error) {
+      console.error("Error OAuth:", error);
+      res.status(500).json({ message: "Error en autenticación OAuth" });
+    }
+  });
+
+  /**
    * GET /api/auth/ws-token
    * 
    * Genera un token de corta duración para conexión WebSocket
