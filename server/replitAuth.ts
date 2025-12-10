@@ -242,6 +242,11 @@ export async function setupAuth(app: Express) {
       res.redirect("/");
     }
   });
+  } catch (error) {
+    console.error('[Auth] Error setting up authentication:', error);
+    // No lanzar error, solo loguear - la app puede funcionar sin OAuth
+    console.warn('[Auth] Continuing without OAuth setup');
+  }
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
