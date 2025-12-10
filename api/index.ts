@@ -11,9 +11,11 @@ async function handlerFn(req: any, res: any) {
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
     console.error('[API] Returning initialization error:', initError);
+    // @ts-ignore - process está disponible en runtime
+    const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
     res.status(500).json({ 
       error: 'Server initialization failed',
-      message: process.env.NODE_ENV === 'production' 
+      message: isProduction 
         ? 'Internal server error' 
         : initError.message 
     });
@@ -30,8 +32,9 @@ async function handlerFn(req: any, res: any) {
       
       // En producción, servir archivos estáticos DESPUÉS de las rutas API
       // Esto asegura que /api/* tenga prioridad sobre archivos estáticos
-      // @ts-ignore
-      if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production') {
+      // @ts-ignore - process está disponible en runtime
+      const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+      if (isProduction) {
         try {
           serveStatic(app);
         } catch (staticError) {
@@ -49,9 +52,11 @@ async function handlerFn(req: any, res: any) {
     } catch (error) {
       console.error('[API] Error initializing Express app:', error);
       initError = error as Error;
+      // @ts-ignore - process está disponible en runtime
+      const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
       res.status(500).json({ 
         error: 'Server initialization failed',
-        message: process.env.NODE_ENV === 'production' 
+        message: isProduction 
           ? 'Internal server error' 
           : (error as Error).message 
       });
@@ -65,9 +70,11 @@ async function handlerFn(req: any, res: any) {
   } catch (error) {
     console.error('[API] Error in handler execution:', error);
     if (!res.headersSent) {
+      // @ts-ignore - process está disponible en runtime
+      const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
       res.status(500).json({ 
         error: 'Handler execution failed',
-        message: process.env.NODE_ENV === 'production' 
+        message: isProduction 
           ? 'Internal server error' 
           : (error as Error).message 
       });
