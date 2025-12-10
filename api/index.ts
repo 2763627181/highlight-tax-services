@@ -6,7 +6,7 @@ import serverless from 'serverless-http';
 let app: any = null;
 let handler: any = null;
 
-export default async function handlerFn(req: any, res: any) {
+async function handlerFn(req: any, res: any) {
   if (!app) {
     console.log('[API] Initializing Express app for Vercel...');
     app = await createApp(undefined);
@@ -28,3 +28,6 @@ export default async function handlerFn(req: any, res: any) {
   
   return handler(req, res);
 }
+
+// Exportar como default - esbuild lo convertirá a module.exports en CommonJS
+export default handlerFn;
