@@ -82,17 +82,31 @@ async function buildAll() {
   
   // Asegurar que el handler se exporte correctamente para Vercel
   // Leer el archivo generado y ajustar el export si es necesario
-  const handlerContent = await readFile("api/handler.js", "utf-8");
-  // Si el export está como module.exports.default, cambiarlo a module.exports
-  const fixedContent = handlerContent.replace(
-    /module\.exports\s*=\s*__toCommonJS\(index_exports\);/,
-    `module.exports = __toCommonJS(index_exports);
-// Asegurar compatibilidad con Vercel
-if (module.exports.default) {
-  module.exports = module.exports.default;
-}`
-  );
-  await writeFile("api/handler.js", fixedContent);
+  try {
+    const handlerContent = await readFile("api/handler.js", "utf-8");
+    // Asegurar que el export sea compatible con Vercel
+    // Vercel espera module.exports o module.exports.default
+    let fixedContent = handlerContent;
+    
+    // Si tiene __toCommonJS, asegurar que el default se exporte correctamente
+    if (handlerContent.includes('__toCommonJS') && handlerContent.includes('module.exports')) {
+      // Agregar compatibilidad al final del archivo
+      fixedContent = handlerContent + `
+// Compatibilidad con Vercel: asegurar que el handler esté disponible
+if (typeof module !== 'undefined' && module.exports) {
+  const handler = module.exports.default || module.exports;
+  if (handler && typeof handler === 'function') {
+    module.exports = handler;
+  }
+}`;
+    }
+    
+    await writeFile("api/handler.js", fixedContent);
+    console.log("Handler export fixed for Vercel compatibility");
+  } catch (error) {
+    console.warn("Could not fix handler export:", error);
+    // Continuar aunque falle, el build puede funcionar de todas formas
+  }
 
   console.log("build complete!");
 }
