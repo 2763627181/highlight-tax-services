@@ -1538,11 +1538,18 @@ export async function registerRoutes(
    */
   app.get("/api/admin/stats", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
+      console.log("[Admin] Obteniendo estadísticas...");
       const stats = await storage.getAdminStats();
+      console.log("[Admin] Estadísticas obtenidas:", stats);
       res.json(stats);
     } catch (error) {
-      console.error("Error obteniendo estadísticas:", error);
-      res.status(500).json({ message: "Error al obtener estadísticas" });
+      console.error("[Admin] Error obteniendo estadísticas:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("[Admin] Error details:", errorMessage, error);
+      res.status(500).json({ 
+        message: "Error al obtener estadísticas",
+        error: process.env.NODE_ENV !== 'production' ? errorMessage : undefined
+      });
     }
   });
 
@@ -1556,11 +1563,18 @@ export async function registerRoutes(
    */
   app.get("/api/admin/clients", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
     try {
+      console.log("[Admin] Obteniendo clientes...");
       const clients = await storage.getClientsWithDetails();
+      console.log("[Admin] Clientes obtenidos:", clients.length);
       res.json(clients);
     } catch (error) {
-      console.error("Error obteniendo clientes:", error);
-      res.status(500).json({ message: "Error al obtener clientes" });
+      console.error("[Admin] Error obteniendo clientes:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("[Admin] Error details:", errorMessage, error);
+      res.status(500).json({ 
+        message: "Error al obtener clientes",
+        error: process.env.NODE_ENV !== 'production' ? errorMessage : undefined
+      });
     }
   });
 

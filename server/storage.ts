@@ -517,29 +517,45 @@ export class DatabaseStorage implements IStorage {
    * @returns Clientes con documentsCount y casesCount
    */
   async getClientsWithDetails(): Promise<(User & { documentsCount: number; casesCount: number })[]> {
-    const clients = await this.getAllClients();
-    const clientsWithDetails = await Promise.all(
-      clients.map(async (client) => {
-        // Contar documentos del cliente
-        const clientDocs = await db
-          .select({ count: count() })
-          .from(documents)
-          .where(eq(documents.clientId, client.id));
-        
-        // Contar casos del cliente
-        const clientCases = await db
-          .select({ count: count() })
-          .from(taxCases)
-          .where(eq(taxCases.clientId, client.id));
-        
-        return {
-          ...client,
-          documentsCount: clientDocs[0]?.count || 0,
-          casesCount: clientCases[0]?.count || 0,
-        };
-      })
-    );
-    return clientsWithDetails;
+    try {
+      const clients = await this.getAllClients();
+      const clientsWithDetails = await Promise.all(
+        clients.map(async (client) => {
+          try {
+            // Contar documentos del cliente
+            const [clientDocs] = await db
+              .select({ count: count() })
+              .from(documents)
+              .where(eq(documents.clientId, client.id));
+            
+            // Contar casos del cliente
+            const [clientCases] = await db
+              .select({ count: count() })
+              .from(taxCases)
+              .where(eq(taxCases.clientId, client.id));
+            
+            return {
+              ...client,
+              documentsCount: Number(clientDocs?.count || 0),
+              casesCount: Number(clientCases?.count || 0),
+            };
+          } catch (error) {
+            console.error(`[Storage] Error obteniendo detalles para cliente ${client.id}:`, error);
+            // Devolver cliente con conteos en 0 si hay error
+            return {
+              ...client,
+              documentsCount: 0,
+              casesCount: 0,
+            };
+          }
+        })
+      );
+      return clientsWithDetails;
+    } catch (error) {
+      console.error("[Storage] Error en getClientsWithDetails:", error);
+      // Devolver array vacío en caso de error
+      return [];
+    }
   }
 
   // ===========================================================================
@@ -1043,36 +1059,47 @@ export class DatabaseStorage implements IStorage {
     completedCases: number;
     totalRefunds: number;
   }> {
-    // Contar clientes
-    const [clientCount] = await db
-      .select({ count: count() })
-      .from(users)
-      .where(eq(users.role, "client"));
+    try {
+      // Contar clientes
+      const [clientCount] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(eq(users.role, "client"));
 
-    // Contar casos pendientes
-    const [pendingCount] = await db
-      .select({ count: count() })
-      .from(taxCases)
-      .where(eq(taxCases.status, "pending"));
+      // Contar casos pendientes
+      const [pendingCount] = await db
+        .select({ count: count() })
+        .from(taxCases)
+        .where(eq(taxCases.status, "pending"));
 
-    // Contar casos completados
-    const completedCases = await db
-      .select({ count: count() })
-      .from(taxCases)
-      .where(sql`${taxCases.status} IN ('approved', 'refund_issued')`);
+      // Contar casos completados
+      const [completedCount] = await db
+        .select({ count: count() })
+        .from(taxCases)
+        .where(sql`${taxCases.status} IN ('approved', 'refund_issued')`);
 
-    // Sumar total de reembolsos
-    const [refundsSum] = await db
-      .select({ total: sum(taxCases.finalAmount) })
-      .from(taxCases)
-      .where(sql`${taxCases.finalAmount} IS NOT NULL`);
+      // Sumar total de reembolsos
+      const [refundsSum] = await db
+        .select({ total: sum(taxCases.finalAmount) })
+        .from(taxCases)
+        .where(sql`${taxCases.finalAmount} IS NOT NULL`);
 
-    return {
-      totalClients: clientCount?.count || 0,
-      pendingCases: pendingCount?.count || 0,
-      completedCases: completedCases[0]?.count || 0,
-      totalRefunds: parseFloat(refundsSum?.total || "0"),
-    };
+      return {
+        totalClients: Number(clientCount?.count || 0),
+        pendingCases: Number(pendingCount?.count || 0),
+        completedCases: Number(completedCount?.count || 0),
+        totalRefunds: parseFloat(refundsSum?.total || "0") || 0,
+      };
+    } catch (error) {
+      console.error("[Storage] Error en getAdminStats:", error);
+      // Devolver valores por defecto en caso de error
+      return {
+        totalClients: 0,
+        pendingCases: 0,
+        completedCases: 0,
+        totalRefunds: 0,
+      };
+    }
   }
 
   /**
