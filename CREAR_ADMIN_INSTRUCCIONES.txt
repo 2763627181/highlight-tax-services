@@ -1,0 +1,31 @@
+========================================
+  CREAR USUARIO ADMIN - INSTRUCCIONES
+========================================
+
+ARCHIVO LISTO: crear-admin-automatico.sql
+
+PASOS:
+
+1. Abre el archivo: crear-admin-automatico.sql
+
+2. Selecciona TODO el contenido (Ctrl+A)
+
+3. Copia (Ctrl+C)
+
+4. Ve a Supabase SQL Editor:
+   https://supabase.com/dashboard/project/pfqzfretadqjzjbimvkv/sql/new
+
+5. Pega el SQL (Ctrl+V)
+
+6. Haz clic en "Run" o presiona Ctrl+Enter
+
+7. Verifica que se creó correctamente
+
+========================================
+  CREDENCIALES DEL ADMIN:
+========================================
+Email: servicestaxx@gmail.com
+Password: Admin123!
+
+========================================
+
