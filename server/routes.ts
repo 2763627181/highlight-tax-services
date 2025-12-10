@@ -501,6 +501,87 @@ export async function registerRoutes(
   await setupAuth(app);
 
   // ===========================================================================
+  // ENDPOINT TEMPORAL PARA CREAR USUARIO (SOLO DESARROLLO)
+  // ===========================================================================
+  
+  /**
+   * POST /api/admin/create-user
+   * 
+   * Endpoint temporal para crear usuarios directamente
+   * SOLO DISPONIBLE EN DESARROLLO O CON TOKEN ESPECIAL
+   * 
+   * @body {string} email - Email del usuario
+   * @body {string} password - Contraseña
+   * @body {string} name - Nombre completo
+   * @body {string} [phone] - Teléfono opcional
+   */
+  app.post("/api/admin/create-user", async (req: Request, res: Response) => {
+    try {
+      // Solo permitir en desarrollo o con token especial
+      const adminToken = req.headers['x-admin-token'];
+      const isDev = process.env.NODE_ENV !== 'production';
+      
+      if (!isDev && adminToken !== process.env.ADMIN_CREATE_USER_TOKEN) {
+        res.status(403).json({ message: "No autorizado" });
+        return;
+      }
+
+      const { email, password, name, phone } = req.body;
+
+      if (!email || !password || !name) {
+        res.status(400).json({ message: "Email, password y name son requeridos" });
+        return;
+      }
+
+      // Verificar si el usuario ya existe
+      const existingUser = await storage.getUserByEmail(email.toLowerCase().trim());
+      if (existingUser) {
+        res.status(400).json({ 
+          message: "Este email ya está registrado",
+          user: {
+            id: existingUser.id,
+            email: existingUser.email,
+            name: existingUser.name,
+            role: existingUser.role,
+          }
+        });
+        return;
+      }
+
+      // Hashear contraseña
+      const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+      // Crear usuario
+      const user = await storage.createUser({
+        email: email.toLowerCase().trim(),
+        password: hashedPassword,
+        name: name.trim(),
+        phone: phone || null,
+        role: "client",
+      });
+
+      res.json({
+        success: true,
+        message: "Usuario creado exitosamente",
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          phone: user.phone,
+          role: user.role,
+          createdAt: user.createdAt,
+        }
+      });
+    } catch (error) {
+      console.error("Error creando usuario:", error);
+      res.status(500).json({ 
+        message: "Error al crear usuario",
+        error: process.env.NODE_ENV !== 'production' ? (error as Error).message : undefined
+      });
+    }
+  });
+
+  // ===========================================================================
   // ENDPOINTS DE AUTENTICACIÓN
   // ===========================================================================
 
