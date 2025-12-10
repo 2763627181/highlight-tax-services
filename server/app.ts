@@ -95,14 +95,30 @@ export async function createApp(httpServer?: Server) {
 
   await registerRoutes(httpServer, app);
 
+  // Middleware de manejo de errores - DEBE estar después de todas las rutas
+  // Asegura que todos los errores devuelvan JSON, no HTML
   app.use((err: Error & { status?: number; statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = process.env.NODE_ENV === 'production' 
-      ? 'Error interno del servidor' 
-      : err.message || "Internal Server Error";
+    // Asegurar que siempre devolvamos JSON
+    if (!res.headersSent) {
+      const status = err.status || err.statusCode || 500;
+      const message = process.env.NODE_ENV === 'production' 
+        ? 'Error interno del servidor' 
+        : err.message || "Internal Server Error";
 
-    log(`Error: ${err.message}`, "error");
-    res.status(status).json({ message });
+      log(`Error: ${err.message}`, "error");
+      
+      // Establecer Content-Type explícitamente
+      res.setHeader('Content-Type', 'application/json');
+      res.status(status).json({ message, error: process.env.NODE_ENV !== 'production' ? err.message : undefined });
+    }
+  });
+
+  // Catch-all para rutas no encontradas - devolver JSON, no HTML
+  app.use((_req: Request, res: Response) => {
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json');
+      res.status(404).json({ message: "Ruta no encontrada" });
+    }
   });
 
   return app;
