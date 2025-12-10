@@ -7,11 +7,15 @@
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/handler.js" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/handler.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/api/handler.js"
+    }
   ],
   "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "outputDirectory": "dist/public"
+  "installCommand": "npm install"
 }
