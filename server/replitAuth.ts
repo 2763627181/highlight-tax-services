@@ -139,12 +139,30 @@ async function upsertOAuthUser(claims: any): Promise<{ id: number; email: string
 }
 
 export async function setupAuth(app: Express) {
-  app.set("trust proxy", 1);
-  app.use(getSession());
-  app.use(passport.initialize());
-  app.use(passport.session());
+  try {
+    console.log('[Auth] Setting up authentication...');
+    app.set("trust proxy", 1);
+    
+    try {
+      app.use(getSession());
+      app.use(passport.initialize());
+      app.use(passport.session());
+      console.log('[Auth] Session middleware configured');
+    } catch (sessionError) {
+      console.warn('[Auth] Warning: Could not setup session middleware:', sessionError);
+      // Continuar sin sesiones si falla (puede ser normal en serverless)
+    }
 
-  const config = await getOidcConfig();
+    let config;
+    try {
+      config = await getOidcConfig();
+      console.log('[Auth] OIDC config loaded');
+    } catch (configError) {
+      console.warn('[Auth] Warning: Could not load OIDC config:', configError);
+      // Si no hay config de OAuth, simplemente no configuramos las rutas OAuth
+      // pero continuamos con el resto de la autenticación
+      return;
+    }
 
   const verify: VerifyFunction = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,

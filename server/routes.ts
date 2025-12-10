@@ -491,14 +491,26 @@ export async function registerRoutes(
   httpServer: Server | undefined,
   app: Express
 ): Promise<Server | undefined> {
-  
-  // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
-  if (httpServer) {
-    wsService.initialize(httpServer);
+  try {
+    console.log('[Routes] Starting route registration...');
+    
+    // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
+    if (httpServer) {
+      console.log('[Routes] Initializing WebSocket service...');
+      wsService.initialize(httpServer);
+      console.log('[Routes] WebSocket service initialized');
+    } else {
+      console.log('[Routes] Skipping WebSocket (serverless mode)');
+    }
+    
+    // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
+    console.log('[Routes] Setting up OAuth authentication...');
+    await setupAuth(app);
+    console.log('[Routes] OAuth authentication setup complete');
+  } catch (error) {
+    console.error('[Routes] Error during route registration setup:', error);
+    throw error;
   }
-  
-  // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
-  await setupAuth(app);
 
   // ===========================================================================
   // ENDPOINT TEMPORAL PARA CREAR USUARIO (SOLO DESARROLLO)

@@ -93,7 +93,14 @@ export async function createApp(httpServer?: Server) {
     next();
   });
 
-  await registerRoutes(httpServer, app);
+  try {
+    console.log('[App] Registering routes...');
+    await registerRoutes(httpServer, app);
+    console.log('[App] Routes registered successfully');
+  } catch (error) {
+    console.error('[App] Error registering routes:', error);
+    throw error; // Re-lanzar para que el handler lo capture
+  }
 
   // Middleware de manejo de errores - DEBE estar después de todas las rutas
   // Asegura que todos los errores devuelvan JSON, no HTML
@@ -105,6 +112,7 @@ export async function createApp(httpServer?: Server) {
         ? 'Error interno del servidor' 
         : err.message || "Internal Server Error";
 
+      console.error('[App] Error handler caught:', err.message, err.stack);
       log(`Error: ${err.message}`, "error");
       
       // Establecer Content-Type explícitamente
