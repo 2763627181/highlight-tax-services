@@ -519,13 +519,14 @@ export async function registerRoutes(
   /**
    * POST /api/admin/create-user
    * 
-   * Endpoint temporal para crear usuarios directamente
+   * Endpoint para crear usuarios directamente (client, preparer, o admin)
    * SOLO DISPONIBLE EN DESARROLLO O CON TOKEN ESPECIAL
    * 
    * @body {string} email - Email del usuario
    * @body {string} password - Contraseña
    * @body {string} name - Nombre completo
    * @body {string} [phone] - Teléfono opcional
+   * @body {string} [role] - Rol del usuario: "client" (default), "preparer", o "admin"
    */
   app.post("/api/admin/create-user", async (req: Request, res: Response) => {
     try {
@@ -538,12 +539,16 @@ export async function registerRoutes(
         return;
       }
 
-      const { email, password, name, phone } = req.body;
+      const { email, password, name, phone, role } = req.body;
 
       if (!email || !password || !name) {
         res.status(400).json({ message: "Email, password y name son requeridos" });
         return;
       }
+
+      // Validar rol
+      const validRoles = ["client", "preparer", "admin"];
+      const userRole = role && validRoles.includes(role) ? role : "client";
 
       // Verificar si el usuario ya existe
       const existingUser = await storage.getUserByEmail(email.toLowerCase().trim());
@@ -569,12 +574,19 @@ export async function registerRoutes(
         password: hashedPassword,
         name: name.trim(),
         phone: phone || null,
-        role: "client",
+        role: userRole as "client" | "preparer" | "admin",
+      });
+
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "user_created",
+        details: `Usuario creado: ${email} con rol ${userRole}`,
       });
 
       res.json({
         success: true,
-        message: "Usuario creado exitosamente",
+        message: `Usuario ${userRole} creado exitosamente`,
         user: {
           id: user.id,
           email: user.email,
