@@ -84261,6 +84261,15 @@ async function registerRoutes(httpServer2, app3) {
   });
   app3.get("/api/health", async (_req, res) => {
     try {
+      if (!process.env.DATABASE_URL) {
+        res.status(503).json({
+          status: "error",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          database: "not_configured",
+          error: "DATABASE_URL no est\xE1 configurada en las variables de entorno"
+        });
+        return;
+      }
       await db.execute(sql`SELECT 1`);
       res.json({
         status: "ok",
@@ -84270,11 +84279,12 @@ async function registerRoutes(httpServer2, app3) {
       });
     } catch (error) {
       console.error("[Health] Database check failed:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(503).json({
         status: "error",
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
         database: "disconnected",
-        error: false ? error instanceof Error ? error.message : String(error) : void 0
+        error: false ? errorMessage : void 0
       });
     }
   });

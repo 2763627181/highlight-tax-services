@@ -627,6 +627,17 @@ export async function registerRoutes(
    */
   app.get("/api/health", async (_req: Request, res: Response) => {
     try {
+      // Verificar que DATABASE_URL esté configurada
+      if (!process.env.DATABASE_URL) {
+        res.status(503).json({
+          status: "error",
+          timestamp: new Date().toISOString(),
+          database: "not_configured",
+          error: "DATABASE_URL no está configurada en las variables de entorno"
+        });
+        return;
+      }
+
       // Verificar conexión a la base de datos
       await db.execute(sql`SELECT 1`);
       
@@ -638,13 +649,12 @@ export async function registerRoutes(
       });
     } catch (error) {
       console.error("[Health] Database check failed:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(503).json({
         status: "error",
         timestamp: new Date().toISOString(),
         database: "disconnected",
-        error: process.env.NODE_ENV !== 'production' 
-          ? (error instanceof Error ? error.message : String(error))
-          : undefined
+        error: process.env.NODE_ENV !== 'production' ? errorMessage : undefined
       });
     }
   });
