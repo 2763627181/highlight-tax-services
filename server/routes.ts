@@ -371,10 +371,10 @@ interface AuthRequest extends Request {
  * 
  * @example
  * app.get('/api/protected', authenticateToken, (req, res) => {
- *   res.json({ user: req.user });
+ *   res.json({ user: authReq.user });
  * });
  */
-function authenticateToken(req: AuthRequest, res: Response, next: NextFunction): void {
+function authenticateToken(req: Request, res: Response, next: NextFunction): void {
   // Buscar token en cookie o header Authorization
   const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
 
@@ -391,7 +391,7 @@ function authenticateToken(req: AuthRequest, res: Response, next: NextFunction):
       role: string;
       name: string;
     };
-    req.user = decoded;
+    (req as AuthRequest).user = decoded;
     next();
   } catch (error) {
     // Token inválido o expirado
@@ -414,8 +414,9 @@ function authenticateToken(req: AuthRequest, res: Response, next: NextFunction):
  * @example
  * app.get('/api/admin/users', authenticateToken, requireAdmin, handler);
  */
-function requireAdmin(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (req.user?.role !== "admin" && req.user?.role !== "preparer") {
+function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const authReq = req as AuthRequest;
+  if (authauthauthReq.user?.role !== "admin" && authauthauthReq.user?.role !== "preparer") {
     res.status(403).json({ message: "Acceso de administrador requerido" });
     return;
   }
@@ -773,8 +774,9 @@ export async function registerRoutes(
    * @requires authenticateToken
    * @returns {object} Datos del usuario sin información sensible
    */
-  app.get("/api/auth/me", authenticateToken, async (req: AuthRequest, res: Response) => {
-    res.json({ user: req.user });
+  app.get("/api/auth/me", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
+    res.json({ user: authReq.user });
   });
 
   /**
@@ -876,10 +878,11 @@ export async function registerRoutes(
    * 
    * @security Token separado del principal para limitar exposición
    */
-  app.get("/api/auth/ws-token", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/auth/ws-token", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const wsToken = jwt.sign(
-        { id: req.user!.id, role: req.user!.role },
+        { id: authauthReq.user!.id, role: authauthReq.user!.role },
         JWT_SECRET,
         { expiresIn: "1h" }
       );
@@ -1110,9 +1113,10 @@ export async function registerRoutes(
    * @requires authenticateToken
    * @returns {TaxCase[]} Lista de casos del cliente
    */
-  app.get("/api/cases", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/cases", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
-      const cases = await storage.getTaxCasesByClient(req.user!.id);
+      const cases = await storage.getTaxCasesByClient(authauthReq.user!.id);
       res.json(cases);
     } catch (error) {
       console.error("Error obteniendo casos:", error);
@@ -1132,9 +1136,10 @@ export async function registerRoutes(
    * @requires authenticateToken
    * @returns {Document[]} Lista de documentos del cliente
    */
-  app.get("/api/documents", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/documents", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
-      const documents = await storage.getDocumentsByClient(req.user!.id);
+      const documents = await storage.getDocumentsByClient(authauthReq.user!.id);
       res.json(documents);
     } catch (error) {
       console.error("Error obteniendo documentos:", error);
@@ -1169,7 +1174,8 @@ export async function registerRoutes(
     authenticateToken, 
     uploadLimiter,
     upload.single("file"), 
-    async (req: AuthRequest, res: Response) => {
+    async (req: Request, res: Response) => {
+      const authReq = req as AuthRequest;
       try {
         if (!req.file) {
           res.status(400).json({ message: "No se recibió ningún archivo" });
@@ -1184,7 +1190,7 @@ export async function registerRoutes(
           validCaseId = parseInt(caseId);
           if (!isNaN(validCaseId)) {
             const taxCase = await storage.getTaxCase(validCaseId);
-            if (!taxCase || taxCase.clientId !== req.user!.id) {
+            if (!taxCase || taxCase.clientId !== authauthReq.user!.id) {
               // Eliminar archivo subido
               fs.unlinkSync(req.file.path);
               res.status(403).json({ message: "Acceso denegado al caso" });
@@ -1199,36 +1205,36 @@ export async function registerRoutes(
         // Crear registro de documento
         const document = await storage.createDocument({
           caseId: validCaseId,
-          clientId: req.user!.id,
+          clientId: authauthReq.user!.id,
           fileName: req.file.originalname,
           filePath: req.file.path,
           fileType: req.file.mimetype,
           fileSize: req.file.size,
           category: docCategory,
           description: description || null,
-          uploadedById: req.user!.id,
+          uploadedById: authauthReq.user!.id,
           isFromPreparer: false,
         });
 
         // Registrar actividad
         await storage.createActivityLog({
-          userId: req.user!.id,
+          userId: authauthReq.user!.id,
           action: "document_uploaded",
           details: `Documento subido: ${req.file.originalname} (${docCategory})`,
         });
 
         // Notificar al administrador
         sendDocumentUploadNotification({
-          clientName: req.user!.name,
-          clientEmail: req.user!.email,
+          clientName: authauthReq.user!.name,
+          clientEmail: authauthReq.user!.email,
           fileName: req.file.originalname,
           category: docCategory,
         }).catch(console.error);
 
         // Notificación en tiempo real
         wsService.notifyDocumentUpload(
-          req.user!.id,
-          req.user!.name,
+          authauthReq.user!.id,
+          authauthReq.user!.name,
           req.file.originalname,
           validCaseId || undefined
         );
@@ -1253,7 +1259,8 @@ export async function registerRoutes(
    * - Solo el propietario o admin pueden descargar
    * - Verifica existencia del archivo
    */
-  app.get("/api/documents/:id/download", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/documents/:id/download", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const documentId = parseInt(req.params.id);
       if (isNaN(documentId)) {
@@ -1269,8 +1276,8 @@ export async function registerRoutes(
       }
 
       // Verificar permisos
-      const isAdmin = req.user!.role === "admin" || req.user!.role === "preparer";
-      const isOwner = document.clientId === req.user!.id;
+      const isAdmin = authauthReq.user!.role === "admin" || authauthReq.user!.role === "preparer";
+      const isOwner = document.clientId === authauthReq.user!.id;
 
       if (!isAdmin && !isOwner) {
         res.status(403).json({ message: "Acceso denegado" });
@@ -1302,9 +1309,10 @@ export async function registerRoutes(
    * @requires authenticateToken
    * @returns {Appointment[]} Lista de citas del cliente
    */
-  app.get("/api/appointments", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/appointments", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
-      const appointments = await storage.getAppointmentsByClient(req.user!.id);
+      const appointments = await storage.getAppointmentsByClient(authauthReq.user!.id);
       res.json(appointments);
     } catch (error) {
       console.error("Error obteniendo citas:", error);
@@ -1328,7 +1336,8 @@ export async function registerRoutes(
    * - Envía confirmación por email
    * - Notifica a admin por WebSocket
    */
-  app.post("/api/appointments", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.post("/api/appointments", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const { appointmentDate, notes } = req.body;
 
@@ -1355,7 +1364,7 @@ export async function registerRoutes(
 
       // Crear cita
       const appointment = await storage.createAppointment({
-        clientId: req.user!.id,
+        clientId: authauthReq.user!.id,
         appointmentDate: parsedDate,
         notes: notes || null,
         status: "scheduled",
@@ -1363,22 +1372,22 @@ export async function registerRoutes(
 
       // Registrar actividad
       await storage.createActivityLog({
-        userId: req.user!.id,
+        userId: authauthReq.user!.id,
         action: "appointment_scheduled",
         details: `Cita agendada para ${appointmentDate}`,
       });
 
       // Enviar confirmación por email
       sendAppointmentConfirmation({
-        clientName: req.user!.name,
-        clientEmail: req.user!.email,
+        clientName: authauthReq.user!.name,
+        clientEmail: authauthReq.user!.email,
         appointmentDate: parsedDate,
         notes: notes || undefined,
       }).catch(console.error);
 
       // Notificación en tiempo real
       wsService.notifyNewAppointment(
-        req.user!.id,
+        authauthReq.user!.id,
         parsedDate.toISOString(),
         notes || "Consulta de impuestos"
       );
@@ -1402,9 +1411,10 @@ export async function registerRoutes(
    * @requires authenticateToken
    * @returns {Conversation[]} Lista de conversaciones con último mensaje
    */
-  app.get("/api/messages/conversations", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/messages/conversations", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
-      const conversations = await storage.getConversationsForUser(req.user!.id);
+      const conversations = await storage.getConversationsForUser(authauthReq.user!.id);
       res.json(conversations);
     } catch (error) {
       console.error("Error obteniendo conversaciones:", error);
@@ -1420,9 +1430,10 @@ export async function registerRoutes(
    * @requires authenticateToken
    * @returns {object} Conteo de mensajes sin leer
    */
-  app.get("/api/messages/unread-count", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/messages/unread-count", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
-      const count = await storage.getUnreadCount(req.user!.id);
+      const count = await storage.getUnreadCount(authauthReq.user!.id);
       res.json({ count });
     } catch (error) {
       console.error("Error obteniendo conteo:", error);
@@ -1440,7 +1451,8 @@ export async function registerRoutes(
    * 
    * @sideeffects Marca los mensajes como leídos
    */
-  app.get("/api/messages/:partnerId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  app.get("/api/messages/:partnerId", authenticateToken, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const partnerId = parseInt(req.params.partnerId);
       if (isNaN(partnerId)) {
@@ -1448,10 +1460,10 @@ export async function registerRoutes(
         return;
       }
 
-      const messages = await storage.getConversation(req.user!.id, partnerId);
+      const messages = await storage.getConversation(authauthReq.user!.id, partnerId);
       
       // Marcar como leídos
-      await storage.markMessagesAsRead(req.user!.id, partnerId);
+      await storage.markMessagesAsRead(authauthReq.user!.id, partnerId);
       
       res.json(messages);
     } catch (error) {
@@ -1473,7 +1485,8 @@ export async function registerRoutes(
    * @security Rate limited: 30 mensajes / 15 min
    * @sideeffects Notifica al destinatario por WebSocket
    */
-  app.post("/api/messages", authenticateToken, messageLimiter, async (req: AuthRequest, res: Response) => {
+  app.post("/api/messages", authenticateToken, messageLimiter, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       // Validar datos de entrada
       const result = messageSchema.safeParse({
@@ -1500,7 +1513,7 @@ export async function registerRoutes(
 
       // Crear mensaje
       const newMessage = await storage.createMessage({
-        senderId: req.user!.id,
+        senderId: authauthReq.user!.id,
         recipientId,
         message,
         caseId: caseId || null,
@@ -1509,14 +1522,14 @@ export async function registerRoutes(
 
       // Registrar actividad
       await storage.createActivityLog({
-        userId: req.user!.id,
+        userId: authauthReq.user!.id,
         action: "message_sent",
         details: `Mensaje enviado a ${recipient.name}`,
       });
 
       // Notificación en tiempo real
       wsService.notifyNewMessage(
-        req.user!.id,
+        authauthReq.user!.id,
         recipientId,
         message.substring(0, 100) + (message.length > 100 ? "..." : "")
       );
@@ -1536,7 +1549,7 @@ export async function registerRoutes(
    * @requires authenticateToken
    * @returns {Preparer[]} Lista de preparadores con id, nombre y rol
    */
-  app.get("/api/preparers", authenticateToken, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/preparers", authenticateToken, async (_req: Request, res: Response) => {
     try {
       const preparers = await db.select().from(users).where(
         sql`${users.role} IN ('admin', 'preparer')`
@@ -1560,7 +1573,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {object} Estadísticas generales del sistema
    */
-  app.get("/api/admin/stats", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/stats", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       console.log("[Admin] Obteniendo estadísticas...");
       const stats = await storage.getAdminStats();
@@ -1585,7 +1598,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {Client[]} Clientes con conteo de documentos y casos
    */
-  app.get("/api/admin/clients", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/clients", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       console.log("[Admin] Obteniendo clientes...");
       const clients = await storage.getClientsWithDetails();
@@ -1611,7 +1624,8 @@ export async function registerRoutes(
    * @param {number} id - ID del cliente
    * @returns {object} Cliente con documentos, casos y citas
    */
-  app.get("/api/admin/clients/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  app.get("/api/admin/clients/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const clientId = parseInt(req.params.id);
       if (isNaN(clientId)) {
@@ -1644,7 +1658,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {Document[]} Todos los documentos
    */
-  app.get("/api/admin/documents", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/documents", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       const documents = await storage.getAllDocuments();
       res.json(documents);
@@ -1662,7 +1676,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {TaxCase[]} Todos los casos
    */
-  app.get("/api/admin/cases", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/cases", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       const cases = await storage.getAllTaxCases();
       res.json(cases);
@@ -1683,7 +1697,8 @@ export async function registerRoutes(
    * @body {string} [filingStatus] - Estado civil fiscal
    * @body {number} [dependents] - Número de dependientes
    */
-  app.post("/api/admin/cases", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  app.post("/api/admin/cases", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const result = caseSchema.safeParse({
         ...req.body,
@@ -1709,7 +1724,7 @@ export async function registerRoutes(
       });
 
       await storage.createActivityLog({
-        userId: req.user!.id,
+        userId: authauthReq.user!.id,
         action: "case_created",
         details: `Caso creado para cliente ${clientId}, año ${filingYear}`,
       });
@@ -1736,7 +1751,8 @@ export async function registerRoutes(
    * - Notifica al cliente si cambia el estado
    * - Envía email de actualización
    */
-  app.patch("/api/admin/cases/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/admin/cases/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const caseId = parseInt(req.params.id);
       if (isNaN(caseId)) {
@@ -1773,7 +1789,7 @@ export async function registerRoutes(
       }
 
       await storage.createActivityLog({
-        userId: req.user!.id,
+        userId: authauthReq.user!.id,
         action: "case_updated",
         details: `Caso ${caseId} actualizado: status=${status}`,
       });
@@ -1815,7 +1831,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {Appointment[]} Todas las citas
    */
-  app.get("/api/admin/appointments", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/appointments", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       const appointments = await storage.getAllAppointments();
       res.json(appointments);
@@ -1833,7 +1849,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {ContactSubmission[]} Todas las solicitudes
    */
-  app.get("/api/admin/contacts", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/contacts", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       const contacts = await storage.getAllContactSubmissions();
       res.json(contacts);
@@ -1851,7 +1867,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {Preparer[]} Lista de preparadores
    */
-  app.get("/api/admin/preparers", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/preparers", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       const preparers = await db.select().from(users).where(
         sql`${users.role} IN ('admin', 'preparer')`
@@ -1871,7 +1887,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {object} Datos de ingresos, tendencias y métricas
    */
-  app.get("/api/admin/analytics", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/analytics", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       const analytics = await storage.getAnalyticsData();
       res.json(analytics);
@@ -1889,7 +1905,7 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {User[]} Lista de todos los usuarios
    */
-  app.get("/api/admin/users", authenticateToken, requireAdmin, async (_req: AuthRequest, res: Response) => {
+  app.get("/api/admin/users", authenticateToken, requireAdmin, async (_req: Request, res: Response) => {
     try {
       const allUsers = await storage.getAllUsers();
       res.json(allUsers);
@@ -1908,7 +1924,8 @@ export async function registerRoutes(
    * @param {boolean} isActive - Estado del usuario
    * @returns {User} Usuario actualizado
    */
-  app.patch("/api/admin/users/:id/status", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/admin/users/:id/status", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const userId = parseInt(req.params.id);
       const { isActive } = req.body;
@@ -1918,7 +1935,7 @@ export async function registerRoutes(
       }
 
       // Prevent admin from deactivating themselves
-      if (req.user?.id === userId && !isActive) {
+      if (authauthReq.user?.id === userId && !isActive) {
         return res.status(400).json({ message: "No puedes desactivarte a ti mismo" });
       }
 
@@ -1943,7 +1960,8 @@ export async function registerRoutes(
    * @param {string} role - Nuevo rol del usuario
    * @returns {User} Usuario actualizado
    */
-  app.patch("/api/admin/users/:id/role", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  app.patch("/api/admin/users/:id/role", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const userId = parseInt(req.params.id);
       const { role } = req.body;
@@ -1954,7 +1972,7 @@ export async function registerRoutes(
       }
 
       // Prevent admin from changing their own role
-      if (req.user?.id === userId) {
+      if (authauthReq.user?.id === userId) {
         return res.status(400).json({ message: "No puedes cambiar tu propio rol" });
       }
 
@@ -1978,7 +1996,8 @@ export async function registerRoutes(
    * @requires authenticateToken, requireAdmin
    * @returns {object} Mensaje de confirmación
    */
-  app.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+  app.post("/api/admin/users/:id/reset-password", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    const authReq = req as AuthRequest;
     try {
       const userId = parseInt(req.params.id);
       const user = await storage.getUser(userId);

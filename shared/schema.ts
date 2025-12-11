@@ -541,7 +541,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para identidades OAuth
@@ -549,7 +549,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export const insertAuthIdentitySchema = createInsertSchema(authIdentities).omit({
   id: true,
   createdAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para casos tributarios
@@ -558,7 +558,7 @@ export const insertTaxCaseSchema = createInsertSchema(taxCases).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para documentos
@@ -566,7 +566,7 @@ export const insertTaxCaseSchema = createInsertSchema(taxCases).omit({
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
   createdAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para citas
@@ -574,7 +574,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para mensajes
@@ -582,7 +582,7 @@ export const insertAppointmentSchema = createInsertSchema(appointments).omit({
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   createdAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para formulario de contacto
@@ -590,7 +590,7 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 export const insertContactSubmissionSchema = createInsertSchema(contactSubmissions).omit({
   id: true,
   createdAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para logs de actividad
@@ -598,7 +598,7 @@ export const insertContactSubmissionSchema = createInsertSchema(contactSubmissio
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
   id: true,
   createdAt: true,
-});
+}) as any;
 
 /**
  * Esquema de inserción para tokens de recuperación de contraseña
@@ -606,7 +606,7 @@ export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
 export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
   id: true,
   createdAt: true,
-});
+}) as any;
 
 /**
  * Esquema de validación para login
