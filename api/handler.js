@@ -73013,20 +73013,24 @@ function drizzle(...params) {
 
 // server/db.ts
 var { Pool: Pool3 } = esm_default;
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?"
-  );
-}
-var poolConfig = {
-  connectionString: process.env.DATABASE_URL
-};
-if (true) {
-  poolConfig.ssl = {
-    rejectUnauthorized: false
+function getPoolConfig() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    console.warn("[DB] DATABASE_URL no est\xE1 configurada. La conexi\xF3n fallar\xE1 al intentar usarse.");
+    return null;
+  }
+  const poolConfig2 = {
+    connectionString: databaseUrl
   };
+  if (true) {
+    poolConfig2.ssl = {
+      rejectUnauthorized: false
+    };
+  }
+  return poolConfig2;
 }
-var pool = new Pool3(poolConfig);
+var poolConfig = getPoolConfig();
+var pool = poolConfig ? new Pool3(poolConfig) : new Pool3({ connectionString: "invalid" });
 var db = drizzle(pool, { schema: schema_exports });
 
 // server/storage.ts
@@ -84284,7 +84288,8 @@ async function registerRoutes(httpServer2, app3) {
         await db.execute(sql`SELECT 1`);
       } catch (dbError) {
         console.error("[Register] Database connection error:", dbError);
-        throw new Error("No se pudo conectar a la base de datos. Verifica DATABASE_URL.");
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        throw new Error(`No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.`);
       }
       const result = registerSchema2.safeParse(req.body);
       if (!result.success) {

@@ -695,7 +695,8 @@ export async function registerRoutes(
         await db.execute(sql`SELECT 1`);
       } catch (dbError) {
         console.error("[Register] Database connection error:", dbError);
-        throw new Error("No se pudo conectar a la base de datos. Verifica DATABASE_URL.");
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        throw new Error(`No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.`);
       }
       // Validar datos de entrada
       const result = registerSchema.safeParse(req.body);
