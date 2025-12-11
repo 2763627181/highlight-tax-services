@@ -11,13 +11,15 @@ async function handlerFn(req: any, res: any) {
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
     console.error('[API] Returning initialization error:', initError);
+    console.error('[API] Error stack:', initError.stack);
     // @ts-ignore - process está disponible en runtime
     const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
     res.status(500).json({ 
       error: 'Server initialization failed',
       message: isProduction 
         ? 'Internal server error' 
-        : initError.message 
+        : initError.message,
+      stack: isProduction ? undefined : initError.stack
     });
     return;
   }
@@ -43,6 +45,15 @@ async function handlerFn(req: any, res: any) {
         }
       }
       
+      // Catch-all para rutas API no encontradas (después de serveStatic)
+      // Solo para rutas /api/* que no fueron manejadas
+      app.use('/api/*', (_req: any, res: any) => {
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'application/json');
+          res.status(404).json({ message: "Ruta API no encontrada" });
+        }
+      });
+      
       // Crear el handler serverless
       handler = serverless(app, {
         binary: ['image/*', 'application/pdf', 'application/octet-stream'],
@@ -50,15 +61,18 @@ async function handlerFn(req: any, res: any) {
       
       console.log('[API] Express app initialized successfully');
     } catch (error) {
-      console.error('[API] Error initializing Express app:', error);
-      initError = error as Error;
+      const err = error as Error;
+      console.error('[API] Error initializing Express app:', err.message);
+      console.error('[API] Error stack:', err.stack);
+      initError = err;
       // @ts-ignore - process está disponible en runtime
       const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
       res.status(500).json({ 
         error: 'Server initialization failed',
         message: isProduction 
           ? 'Internal server error' 
-          : (error as Error).message 
+          : err.message,
+        stack: isProduction ? undefined : err.stack
       });
       return;
     }

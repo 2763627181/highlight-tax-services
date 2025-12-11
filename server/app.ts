@@ -121,13 +121,8 @@ export async function createApp(httpServer?: Server) {
     }
   });
 
-  // Catch-all para rutas no encontradas - devolver JSON, no HTML
-  app.use((_req: Request, res: Response) => {
-    if (!res.headersSent) {
-      res.setHeader('Content-Type', 'application/json');
-      res.status(404).json({ message: "Ruta no encontrada" });
-    }
-  });
+  // NO agregar catch-all aquí - será agregado después de serveStatic en api/index.ts
+  // Esto permite que serveStatic maneje las rutas del frontend antes del catch-all
 
   return app;
 }

@@ -11,6 +11,7 @@
     "db:push": "drizzle-kit push",
     "db:setup": "tsx script/setup-database.ts",
     "db:execute-sql": "tsx script/execute-sql.ts",
+    "db:check": "tsx script/check-tables.ts",
     "create-user": "tsx script/create-user.ts"
   },
   "dependencies": {

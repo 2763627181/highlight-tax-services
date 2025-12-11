@@ -66,6 +66,11 @@ async function buildAll() {
   });
 
   console.log("building Vercel API handler...");
+  
+  // Crear package.json en api/ para forzar CommonJS
+  const apiPackageJson = { type: "commonjs" };
+  await writeFile("api/package.json", JSON.stringify(apiPackageJson, null, 2));
+  
   await esbuild({
     entryPoints: ["api/index.ts"],
     platform: "node",
@@ -81,17 +86,21 @@ async function buildAll() {
   });
   
   // Asegurar que el handler se exporte correctamente para Vercel
-  // Leer el archivo generado y ajustar el export si es necesario
   try {
     const handlerContent = await readFile("api/handler.js", "utf-8");
+    
     // Asegurar que el export sea compatible con Vercel
     // Vercel espera module.exports o module.exports.default
     let fixedContent = handlerContent;
     
     // Si tiene __toCommonJS, asegurar que el default se exporte correctamente
-    if (handlerContent.includes('__toCommonJS') && handlerContent.includes('module.exports')) {
-      // Agregar compatibilidad al final del archivo
-      fixedContent = handlerContent + `
+    if (handlerContent.includes('__toCommonJS') || handlerContent.includes('module.exports')) {
+      // Verificar si ya tiene el export correcto
+      if (!handlerContent.includes('module.exports = handlerFn') && 
+          !handlerContent.includes('module.exports.default') &&
+          handlerContent.includes('handlerFn')) {
+        // Agregar compatibilidad al final del archivo
+        fixedContent = handlerContent + `
 // Compatibilidad con Vercel: asegurar que el handler esté disponible
 if (typeof module !== 'undefined' && module.exports) {
   const handler = module.exports.default || module.exports;
@@ -99,6 +108,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = handler;
   }
 }`;
+      }
     }
     
     await writeFile("api/handler.js", fixedContent);

@@ -111,6 +111,7 @@ The build script (`script/build.ts`) handles:
 | `DATABASE_URL` | Supabase connection string | `postgresql://postgres...` |
 | `SESSION_SECRET` | Secret for JWT tokens (min 32 chars) | `your-super-secret-key-here-32chars` |
 | `NODE_ENV` | Environment mode | `production` |
+| `VITE_APP_URL` | Full URL of your deployed application | `https://highlighttax.com` |
 
 ### Optional Variables
 
@@ -169,8 +170,11 @@ In the Vercel project settings:
    - `DATABASE_URL` = Your Supabase connection string
    - `SESSION_SECRET` = Your generated secret
    - `NODE_ENV` = `production`
+   - `VITE_APP_URL` = Your domain URL (e.g., `https://highlighttax.com`)
 
 3. Click "Save"
+
+> **Important**: Set `VITE_APP_URL` to your actual domain. This is used for generating links in emails (password reset, etc.) and must match your deployed domain.
 
 ### 4.4 Deploy
 

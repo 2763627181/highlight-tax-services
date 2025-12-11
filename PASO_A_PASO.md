@@ -155,16 +155,20 @@ Debes tener estas variables configuradas:
 | `DATABASE_URL` | `postgresql://postgres.pfqzfretadqjzjbimvkv:...` | ✅ Verificar |
 | `SESSION_SECRET` | Tu secret (mínimo 32 caracteres) | ✅ Verificar |
 | `NODE_ENV` | `production` | ✅ Verificar |
+| `VITE_APP_URL` | `https://highlighttax.com` | ✅ Verificar |
 
 ### 5.5 Agregar Variables Faltantes
 
 Si falta alguna:
 
 1. Haz clic en **"Add New"**
-2. **Name:** Escribe el nombre de la variable (ej: `DATABASE_URL`)
+2. **Name:** Escribe el nombre de la variable (ej: `DATABASE_URL` o `VITE_APP_URL`)
 3. **Value:** Pega el valor
+   - Para `VITE_APP_URL`: usa `https://highlighttax.com` (tu dominio real)
 4. **Environment:** Selecciona **"Production"** (y también "Preview" y "Development" si quieres)
 5. Haz clic en **"Save"**
+
+> **Importante**: `VITE_APP_URL` se usa para generar enlaces en emails (como reset de contraseña). Debe ser la URL completa de tu dominio con `https://`.
 
 ### 5.6 Hacer Nuevo Deploy
 
@@ -179,7 +183,30 @@ Si agregaste o modificaste variables:
 
 ---
 
-## ✅ PASO 6: Verificar que el Dominio Funcione
+## ✅ PASO 6: Verificar Dominio y Certificado SSL
+
+### 6.1 Verificar Dominio en Vercel
+
+1. En Vercel, ve a **Settings** > **Domains**
+2. Verifica que `highlighttax.com` esté listado
+3. Verifica que el estado sea **Valid** (debería mostrar un candado verde)
+4. Si no está configurado:
+   - Haz clic en **"Add"**
+   - Ingresa `highlighttax.com`
+   - Sigue las instrucciones para configurar DNS
+
+### 6.2 Verificar Certificado SSL
+
+1. En la misma página de **Domains**, verifica que:
+   - El certificado SSL esté **activo** (candado verde)
+   - El estado sea **Valid Configuration**
+   - No haya advertencias
+
+2. Si el certificado no está activo:
+   - Espera 5-10 minutos (Vercel genera certificados automáticamente)
+   - Si después de 10 minutos sigue sin certificado, haz clic en **"Refresh"** o **"Verify"**
+
+### 6.3 Verificar que el Sitio Funcione
 
 1. **Abre:** **https://highlighttax.com**
 2. **Verifica que:**
@@ -187,8 +214,9 @@ Si agregaste o modificaste variables:
    - No muestra error 404
    - No muestra error 500
    - La página principal se ve correctamente
+   - El certificado SSL es válido (candado verde en el navegador)
 
-**⏱️ Tiempo estimado:** 1 minuto
+**⏱️ Tiempo estimado:** 2-3 minutos
 
 ---
 

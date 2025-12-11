@@ -28,10 +28,30 @@ export function serveStatic(app: Express) {
   }
 
   console.log(`Serving static files from: ${distPath}`);
-  app.use(express.static(distPath));
+  
+  // Servir archivos estáticos (JS, CSS, imágenes, etc.)
+  app.use(express.static(distPath, {
+    // No servir index.html aquí, lo haremos manualmente para rutas SPA
+    index: false,
+  }));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // Servir index.html para todas las rutas que NO sean /api/*
+  // Esto permite que el frontend React maneje el routing (SPA)
+  // Usar app.use con función para capturar todas las rutas no manejadas
+  app.use((req, res, next) => {
+    // Si es una ruta de API, pasar al siguiente middleware (debería haber sido manejada)
+    if (req.path.startsWith("/api/")) {
+      return next();
+    }
+    
+    // Si es un archivo estático (tiene extensión), intentar servirlo primero
+    if (req.path.match(/\.[\w]+$/)) {
+      // Express.static ya intentó servirlo, si llegamos aquí es que no existe
+      return next();
+    }
+    
+    // Para todas las demás rutas (/, /portal, /admin, /dashboard, etc.)
+    // servir index.html para que React Router maneje el routing
     const indexPath = path.resolve(distPath!, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
