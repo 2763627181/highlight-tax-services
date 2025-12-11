@@ -34,3 +34,6 @@ echo 3. Pegalo en Supabase SQL Editor
 echo.
 pause
 
+
+
+
