@@ -191,6 +191,15 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (req: Request, res: Response) => {
+    // Asegurar que siempre devolvamos JSON con Content-Type correcto
+    // Fix: Previene error 'Unexpected token' cuando rate limiter bloquea
+    res.setHeader('Content-Type', 'application/json');
+    res.status(429).json({ 
+      message: "Demasiados intentos de autenticación. Intente de nuevo en 15 minutos.",
+      retryAfter: 15 
+    });
+  },
 });
 
 /**
@@ -416,7 +425,7 @@ function authenticateToken(req: Request, res: Response, next: NextFunction): voi
  */
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   const authReq = req as AuthRequest;
-  if (authauthauthReq.user?.role !== "admin" && authauthauthReq.user?.role !== "preparer") {
+  if (authReq.user?.role !== "admin" && authReq.user?.role !== "preparer") {
     res.status(403).json({ message: "Acceso de administrador requerido" });
     return;
   }
@@ -615,6 +624,10 @@ export async function registerRoutes(
    * 
    * Registra un nuevo usuario cliente en el sistema
    * 
+   * @updated 2025-12-11 - Fix: Siempre devuelve JSON con Content-Type correcto
+   * 
+   * Fix: Siempre devuelve JSON con Content-Type correcto
+   * 
    * @body {string} email - Email único del usuario
    * @body {string} password - Contraseña segura
    * @body {string} name - Nombre completo
@@ -634,6 +647,9 @@ export async function registerRoutes(
    * - Registra actividad en log
    */
   app.post("/api/auth/register", authLimiter, async (req: Request, res: Response) => {
+    // Asegurar que siempre devolvamos JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     try {
       // Validar datos de entrada
       const result = registerSchema.safeParse(req.body);
@@ -691,7 +707,10 @@ export async function registerRoutes(
       });
     } catch (error) {
       console.error("Error de registro:", error);
-      res.status(500).json({ message: "Error al registrar usuario" });
+      // Asegurar que el error también devuelva JSON
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Error al registrar usuario" });
+      }
     }
   });
 
@@ -882,7 +901,7 @@ export async function registerRoutes(
     const authReq = req as AuthRequest;
     try {
       const wsToken = jwt.sign(
-        { id: authauthReq.user!.id, role: authauthReq.user!.role },
+        { id: authReq.user!.id, role: authReq.user!.role },
         JWT_SECRET,
         { expiresIn: "1h" }
       );
@@ -1116,7 +1135,7 @@ export async function registerRoutes(
   app.get("/api/cases", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     try {
-      const cases = await storage.getTaxCasesByClient(authauthReq.user!.id);
+      const cases = await storage.getTaxCasesByClient(authReq.user!.id);
       res.json(cases);
     } catch (error) {
       console.error("Error obteniendo casos:", error);
@@ -1139,7 +1158,7 @@ export async function registerRoutes(
   app.get("/api/documents", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     try {
-      const documents = await storage.getDocumentsByClient(authauthReq.user!.id);
+      const documents = await storage.getDocumentsByClient(authReq.user!.id);
       res.json(documents);
     } catch (error) {
       console.error("Error obteniendo documentos:", error);
@@ -1190,7 +1209,7 @@ export async function registerRoutes(
           validCaseId = parseInt(caseId);
           if (!isNaN(validCaseId)) {
             const taxCase = await storage.getTaxCase(validCaseId);
-            if (!taxCase || taxCase.clientId !== authauthReq.user!.id) {
+            if (!taxCase || taxCase.clientId !== authReq.user!.id) {
               // Eliminar archivo subido
               fs.unlinkSync(req.file.path);
               res.status(403).json({ message: "Acceso denegado al caso" });
@@ -1205,36 +1224,36 @@ export async function registerRoutes(
         // Crear registro de documento
         const document = await storage.createDocument({
           caseId: validCaseId,
-          clientId: authauthReq.user!.id,
+          clientId: authReq.user!.id,
           fileName: req.file.originalname,
           filePath: req.file.path,
           fileType: req.file.mimetype,
           fileSize: req.file.size,
           category: docCategory,
           description: description || null,
-          uploadedById: authauthReq.user!.id,
+          uploadedById: authReq.user!.id,
           isFromPreparer: false,
         });
 
         // Registrar actividad
         await storage.createActivityLog({
-          userId: authauthReq.user!.id,
+          userId: authReq.user!.id,
           action: "document_uploaded",
           details: `Documento subido: ${req.file.originalname} (${docCategory})`,
         });
 
         // Notificar al administrador
         sendDocumentUploadNotification({
-          clientName: authauthReq.user!.name,
-          clientEmail: authauthReq.user!.email,
+          clientName: authReq.user!.name,
+          clientEmail: authReq.user!.email,
           fileName: req.file.originalname,
           category: docCategory,
         }).catch(console.error);
 
         // Notificación en tiempo real
         wsService.notifyDocumentUpload(
-          authauthReq.user!.id,
-          authauthReq.user!.name,
+          authReq.user!.id,
+          authReq.user!.name,
           req.file.originalname,
           validCaseId || undefined
         );
@@ -1276,8 +1295,8 @@ export async function registerRoutes(
       }
 
       // Verificar permisos
-      const isAdmin = authauthReq.user!.role === "admin" || authauthReq.user!.role === "preparer";
-      const isOwner = document.clientId === authauthReq.user!.id;
+      const isAdmin = authReq.user!.role === "admin" || authReq.user!.role === "preparer";
+      const isOwner = document.clientId === authReq.user!.id;
 
       if (!isAdmin && !isOwner) {
         res.status(403).json({ message: "Acceso denegado" });
@@ -1312,7 +1331,7 @@ export async function registerRoutes(
   app.get("/api/appointments", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     try {
-      const appointments = await storage.getAppointmentsByClient(authauthReq.user!.id);
+      const appointments = await storage.getAppointmentsByClient(authReq.user!.id);
       res.json(appointments);
     } catch (error) {
       console.error("Error obteniendo citas:", error);
@@ -1364,7 +1383,7 @@ export async function registerRoutes(
 
       // Crear cita
       const appointment = await storage.createAppointment({
-        clientId: authauthReq.user!.id,
+        clientId: authReq.user!.id,
         appointmentDate: parsedDate,
         notes: notes || null,
         status: "scheduled",
@@ -1372,22 +1391,22 @@ export async function registerRoutes(
 
       // Registrar actividad
       await storage.createActivityLog({
-        userId: authauthReq.user!.id,
+        userId: authReq.user!.id,
         action: "appointment_scheduled",
         details: `Cita agendada para ${appointmentDate}`,
       });
 
       // Enviar confirmación por email
       sendAppointmentConfirmation({
-        clientName: authauthReq.user!.name,
-        clientEmail: authauthReq.user!.email,
+        clientName: authReq.user!.name,
+        clientEmail: authReq.user!.email,
         appointmentDate: parsedDate,
         notes: notes || undefined,
       }).catch(console.error);
 
       // Notificación en tiempo real
       wsService.notifyNewAppointment(
-        authauthReq.user!.id,
+        authReq.user!.id,
         parsedDate.toISOString(),
         notes || "Consulta de impuestos"
       );
@@ -1414,7 +1433,7 @@ export async function registerRoutes(
   app.get("/api/messages/conversations", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     try {
-      const conversations = await storage.getConversationsForUser(authauthReq.user!.id);
+      const conversations = await storage.getConversationsForUser(authReq.user!.id);
       res.json(conversations);
     } catch (error) {
       console.error("Error obteniendo conversaciones:", error);
@@ -1433,7 +1452,7 @@ export async function registerRoutes(
   app.get("/api/messages/unread-count", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     try {
-      const count = await storage.getUnreadCount(authauthReq.user!.id);
+      const count = await storage.getUnreadCount(authReq.user!.id);
       res.json({ count });
     } catch (error) {
       console.error("Error obteniendo conteo:", error);
@@ -1460,10 +1479,10 @@ export async function registerRoutes(
         return;
       }
 
-      const messages = await storage.getConversation(authauthReq.user!.id, partnerId);
+      const messages = await storage.getConversation(authReq.user!.id, partnerId);
       
       // Marcar como leídos
-      await storage.markMessagesAsRead(authauthReq.user!.id, partnerId);
+      await storage.markMessagesAsRead(authReq.user!.id, partnerId);
       
       res.json(messages);
     } catch (error) {
@@ -1513,7 +1532,7 @@ export async function registerRoutes(
 
       // Crear mensaje
       const newMessage = await storage.createMessage({
-        senderId: authauthReq.user!.id,
+        senderId: authReq.user!.id,
         recipientId,
         message,
         caseId: caseId || null,
@@ -1522,14 +1541,14 @@ export async function registerRoutes(
 
       // Registrar actividad
       await storage.createActivityLog({
-        userId: authauthReq.user!.id,
+        userId: authReq.user!.id,
         action: "message_sent",
         details: `Mensaje enviado a ${recipient.name}`,
       });
 
       // Notificación en tiempo real
       wsService.notifyNewMessage(
-        authauthReq.user!.id,
+        authReq.user!.id,
         recipientId,
         message.substring(0, 100) + (message.length > 100 ? "..." : "")
       );
@@ -1724,7 +1743,7 @@ export async function registerRoutes(
       });
 
       await storage.createActivityLog({
-        userId: authauthReq.user!.id,
+        userId: authReq.user!.id,
         action: "case_created",
         details: `Caso creado para cliente ${clientId}, año ${filingYear}`,
       });
@@ -1789,7 +1808,7 @@ export async function registerRoutes(
       }
 
       await storage.createActivityLog({
-        userId: authauthReq.user!.id,
+        userId: authReq.user!.id,
         action: "case_updated",
         details: `Caso ${caseId} actualizado: status=${status}`,
       });
@@ -1935,7 +1954,7 @@ export async function registerRoutes(
       }
 
       // Prevent admin from deactivating themselves
-      if (authauthReq.user?.id === userId && !isActive) {
+      if (authReq.user?.id === userId && !isActive) {
         return res.status(400).json({ message: "No puedes desactivarte a ti mismo" });
       }
 
@@ -1972,7 +1991,7 @@ export async function registerRoutes(
       }
 
       // Prevent admin from changing their own role
-      if (authauthReq.user?.id === userId) {
+      if (authReq.user?.id === userId) {
         return res.status(400).json({ message: "No puedes cambiar tu propio rol" });
       }
 
@@ -2015,15 +2034,15 @@ export async function registerRoutes(
       const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
       const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
-      await storage.createPasswordResetToken({
-        userId: user.id,
-        tokenHash,
-        expiresAt,
-      });
+      await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
       // Send password reset email
-      const resetUrl = `${process.env.VITE_APP_URL || "https://highlighttax.com"}/reset-password?token=${token}`;
-      await sendPasswordResetEmail(user.email, user.name || "Usuario", resetUrl);
+      await sendPasswordResetEmail({
+        name: user.name || "Usuario",
+        email: user.email,
+        resetToken: token,
+        expiresInMinutes: 30,
+      });
 
       res.json({ message: "Email de restablecimiento enviado" });
     } catch (error) {

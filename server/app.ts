@@ -34,7 +34,36 @@ export async function createApp(httpServer?: Server) {
       },
     },
     crossOriginEmbedderPolicy: false,
+    // Mejorar compatibilidad con proxies corporativos como Fortinet
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
   }));
+
+  // Headers adicionales para mejorar compatibilidad con Fortinet y otros proxies corporativos
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    // Asegurar que las respuestas usen HTTPS
+    if (req.headers['x-forwarded-proto'] === 'https' || process.env.NODE_ENV === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+    }
+    
+    // Headers para mejorar compatibilidad con proxies SSL
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    // Permitir que proxies corporativos validen el certificado
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    
+    next();
+  });
 
   app.use(hpp());
 

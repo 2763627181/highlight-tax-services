@@ -129,5 +129,18 @@
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
+  },
+  "overrides": {
+    "@vercel/node": {
+      "esbuild": "^0.25.12",
+      "path-to-regexp": "^8.2.0",
+      "undici": "^6.19.8"
+    },
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.12"
+    },
+    "vite": {
+      "esbuild": "^0.25.12"
+    }
   }
 }

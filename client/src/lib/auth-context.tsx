@@ -1,12 +1,17 @@
 /**
  * @fileoverview Contexto de Autenticación de Highlight Tax Services
  * 
+ * FIX APLICADO: Manejo de errores JSON y conexión - v1.2.0 (2025-12-11)
+ * UPDATED: 2025-12-11 15:00 - Force push de mejoras de manejo de errores
+ * 
  * Provee gestión centralizada del estado de autenticación para toda
  * la aplicación React. Maneja login, registro, logout y verificación
  * de sesión, además de la conexión WebSocket para notificaciones.
  * 
  * @module client/lib/auth-context
- * @version 1.0.0
+ * @version 1.2.1 - Fix: Manejo de errores JSON y conexión mejorado
+ * @updated 2025-12-11 15:35 - Agregadas funciones fetchWithTimeout y safeJsonParse
+ * @force-push: true
  * 
  * ## Uso
  * 
@@ -35,6 +40,77 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { User } from "@shared/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
+
+/**
+ * Timeout para peticiones fetch (30 segundos)
+ * Implementado para solucionar errores de conexión en registro
+ * Versión: 1.2.0 - FIX: Errores JSON y conexión
+ * Última actualización: 2025-12-11
+ */
+const FETCH_TIMEOUT = 30000;
+
+/**
+ * Realiza una petición fetch con timeout
+ * 
+ * @param url - URL a la que hacer la petición
+ * @param options - Opciones de fetch
+ * @returns Promise con la respuesta
+ * @throws Error si hay timeout o error de red
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Network error. Request timeout. Please check your internet connection and try again.");
+    }
+    throw error;
+  }
+}
+
+/**
+ * Parsea una respuesta de forma segura, manejando casos donde no es JSON
+ * 
+ * @param response - Respuesta de fetch
+ * @returns Promise con los datos parseados o un objeto con text si no es JSON
+ */
+async function safeJsonParse(response: Response): Promise<{ data?: any; text?: string }> {
+  const contentType = response.headers.get("content-type");
+  
+  // Leer el texto primero (solo se puede leer una vez)
+  const text = await response.text();
+  
+  // Si el Content-Type indica JSON, intentar parsear
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      return { data: JSON.parse(text) };
+    } catch (error) {
+      // Si falla el parseo aunque el header dice JSON, devolver el texto
+      return { text };
+    }
+  }
+  
+  // Si no es JSON según el header, intentar parsear de todas formas
+  // (algunos servidores no envían el header correcto)
+  try {
+    return { data: JSON.parse(text) };
+  } catch {
+    // No es JSON válido, devolver el texto
+    return { text };
+  }
+}
 
 /**
  * Tipo del contexto de autenticación
@@ -140,8 +216,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: "include",
       });
       if (response.ok) {
-        const data = await response.json();
-        setWsToken(data.token);
+        const result = await safeJsonParse(response);
+        if (result.data && result.data.token) {
+          setWsToken(result.data.token);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch WS token:", error);
@@ -162,9 +240,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: "include",
       });
       if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-        fetchWsToken();
+        const result = await safeJsonParse(response);
+        if (result.data && result.data.user) {
+          setUser(result.data.user);
+          fetchWsToken();
+        } else {
+          setUser(null);
+          setWsToken(null);
+        }
       } else {
         setUser(null);
         setWsToken(null);
@@ -203,21 +286,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * ```
    */
   const login = async (email: string, password: string) => {
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-      credentials: "include",
-    });
+    try {
+      const response = await fetchWithTimeout("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Error al iniciar sesión");
+      if (!response.ok) {
+        let errorMessage = "Error al iniciar sesión";
+        try {
+          const result = await safeJsonParse(response);
+          if (result.data && result.data.message) {
+            errorMessage = result.data.message;
+          } else if (result.text) {
+            errorMessage = result.text;
+          }
+        } catch {
+          errorMessage = response.status === 401 
+            ? "Credenciales inválidas" 
+            : `Error del servidor (${response.status})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await safeJsonParse(response);
+      if (!result.data || !result.data.user) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+      const data = result.data;
+      setUser(data.user);
+      fetchWsToken();
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new Error("Network error. Please check your internet connection and try again.");
+      }
+      throw error;
     }
-
-    const data = await response.json();
-    setUser(data.user);
-    fetchWsToken();
   };
 
   /**
@@ -240,21 +346,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * ```
    */
   const register = async (data: RegisterData) => {
-    const response = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-      credentials: "include",
-    });
+    try {
+      const response = await fetchWithTimeout("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Error al registrarse");
+      if (!response.ok) {
+        let errorMessage = "Error al registrarse";
+        try {
+          const parseResult = await safeJsonParse(response);
+          if (parseResult.data && parseResult.data.message) {
+            errorMessage = parseResult.data.message;
+          } else if (parseResult.text) {
+            errorMessage = parseResult.text;
+          }
+        } catch {
+          errorMessage = response.status === 400 
+            ? "Datos inválidos" 
+            : `Error del servidor (${response.status})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const parseResult = await safeJsonParse(response);
+      if (!parseResult.data || !parseResult.data.user) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+      const result = parseResult.data;
+      setUser(result.user);
+      fetchWsToken();
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new Error("Network error. Please check your internet connection and try again.");
+      }
+      throw error;
     }
-
-    const result = await response.json();
-    setUser(result.user);
-    fetchWsToken();
   };
 
   /**
@@ -284,21 +413,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithOAuth = async (data: OAuthLoginData) => {
-    const response = await fetch("/api/auth/oauth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-      credentials: "include",
-    });
+    try {
+      const response = await fetchWithTimeout("/api/auth/oauth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || "Error al iniciar sesión con OAuth");
+      if (!response.ok) {
+        let errorMessage = "Error al iniciar sesión con OAuth";
+        try {
+          const parseResult = await safeJsonParse(response);
+          if (parseResult.data && parseResult.data.message) {
+            errorMessage = parseResult.data.message;
+          } else if (parseResult.text) {
+            errorMessage = parseResult.text;
+          }
+        } catch {
+          errorMessage = `Error del servidor (${response.status})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const parseResult = await safeJsonParse(response);
+      if (!parseResult.data || !parseResult.data.user) {
+        throw new Error("Respuesta inválida del servidor");
+      }
+      const result = parseResult.data;
+      setUser(result.user);
+      fetchWsToken();
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        throw new Error("Network error. Please check your internet connection and try again.");
+      }
+      throw error;
     }
-
-    const result = await response.json();
-    setUser(result.user);
-    fetchWsToken();
   };
 
   return (
@@ -340,3 +490,5 @@ export function useAuth() {
   }
   return context;
 }
+
+// FIX v1.2.0: Mejoras de manejo de errores JSON y conexión aplicadas - 2025-12-11
