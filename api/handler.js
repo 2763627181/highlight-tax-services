@@ -85245,18 +85245,23 @@ var app2 = null;
 var handler = null;
 var initError = null;
 async function handlerFn(req, res) {
+  if (!res.headersSent) {
+    res.setHeader("Content-Type", "application/json");
+  }
   if (initError) {
     console.error("[API] Returning initialization error:", initError);
     console.error("[API] Error stack:", initError.stack);
     const isProduction = typeof process !== "undefined" && true;
-    res.status(500).json({
-      error: "Server initialization failed",
-      message: isProduction ? "Internal server error" : initError.message,
-      stack: isProduction ? void 0 : initError.stack
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: "Server initialization failed",
+        message: isProduction ? "Internal server error" : initError.message,
+        stack: isProduction ? void 0 : initError.stack
+      });
+    }
     return;
   }
-  if (!app2) {
+  if (!app2 || !handler) {
     try {
       console.log("[API] Initializing Express app for Vercel...");
       app2 = await createApp(void 0);
@@ -85293,19 +85298,41 @@ async function handlerFn(req, res) {
     }
   }
   try {
+    if (!handler) {
+      throw new Error("Handler no est\xE1 inicializado");
+    }
     return await handler(req, res);
   } catch (error) {
     console.error("[API] Error in handler execution:", error);
+    const err = error;
     if (!res.headersSent) {
       const isProduction = typeof process !== "undefined" && true;
       res.status(500).json({
         error: "Handler execution failed",
-        message: isProduction ? "Internal server error" : error.message
+        message: isProduction ? "Internal server error" : err.message,
+        stack: isProduction ? void 0 : err.stack
       });
     }
   }
 }
-var index_default = handlerFn;
+var wrappedHandler = async (req, res) => {
+  try {
+    return await handlerFn(req, res);
+  } catch (error) {
+    console.error("[API] Unhandled error in wrapped handler:", error);
+    const err = error;
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "application/json");
+      const isProduction = typeof process !== "undefined" && true;
+      res.status(500).json({
+        error: "Unhandled server error",
+        message: isProduction ? "Internal server error" : err.message,
+        stack: isProduction ? void 0 : err.stack
+      });
+    }
+  }
+};
+var index_default = wrappedHandler;
 /*! Bundled license information:
 
 depd/index.js:

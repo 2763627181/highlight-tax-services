@@ -8,24 +8,31 @@ let handler: any = null;
 let initError: Error | null = null;
 
 async function handlerFn(req: any, res: any) {
+  // Asegurar que siempre devolvamos JSON
+  if (!res.headersSent) {
+    res.setHeader('Content-Type', 'application/json');
+  }
+
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
     console.error('[API] Returning initialization error:', initError);
     console.error('[API] Error stack:', initError.stack);
     // @ts-ignore - process está disponible en runtime
     const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
-    res.status(500).json({ 
-      error: 'Server initialization failed',
-      message: isProduction 
-        ? 'Internal server error' 
-        : initError.message,
-      stack: isProduction ? undefined : initError.stack
-    });
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Server initialization failed',
+        message: isProduction 
+          ? 'Internal server error' 
+          : initError.message,
+        stack: isProduction ? undefined : initError.stack
+      });
+    }
     return;
   }
 
   // Inicializar la app si no está inicializada
-  if (!app) {
+  if (!app || !handler) {
     try {
       console.log('[API] Initializing Express app for Vercel...');
       
@@ -80,9 +87,13 @@ async function handlerFn(req: any, res: any) {
   
   // Ejecutar el handler
   try {
+    if (!handler) {
+      throw new Error('Handler no está inicializado');
+    }
     return await handler(req, res);
   } catch (error) {
     console.error('[API] Error in handler execution:', error);
+    const err = error as Error;
     if (!res.headersSent) {
       // @ts-ignore - process está disponible en runtime
       const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
@@ -90,11 +101,31 @@ async function handlerFn(req: any, res: any) {
         error: 'Handler execution failed',
         message: isProduction 
           ? 'Internal server error' 
-          : (error as Error).message 
+          : err.message,
+        stack: isProduction ? undefined : err.stack
       });
     }
   }
 }
 
+// Wrapper para capturar errores no manejados
+const wrappedHandler = async (req: any, res: any) => {
+  try {
+    return await handlerFn(req, res);
+  } catch (error) {
+    console.error('[API] Unhandled error in wrapped handler:', error);
+    const err = error as Error;
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json');
+      const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
+      res.status(500).json({
+        error: 'Unhandled server error',
+        message: isProduction ? 'Internal server error' : err.message,
+        stack: isProduction ? undefined : err.stack
+      });
+    }
+  }
+};
+
 // Exportar como default - esbuild lo convertirá a module.exports en CommonJS
-export default handlerFn;
+export default wrappedHandler;
