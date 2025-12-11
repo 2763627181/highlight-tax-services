@@ -84255,6 +84255,25 @@ async function registerRoutes(httpServer2, app3) {
       });
     }
   });
+  app3.get("/api/health", async (_req, res) => {
+    try {
+      await db.execute(sql`SELECT 1`);
+      res.json({
+        status: "ok",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        database: "connected",
+        environment: "production"
+      });
+    } catch (error) {
+      console.error("[Health] Database check failed:", error);
+      res.status(503).json({
+        status: "error",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        database: "disconnected",
+        error: false ? error instanceof Error ? error.message : String(error) : void 0
+      });
+    }
+  });
   app3.post("/api/auth/register", authLimiter, async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
