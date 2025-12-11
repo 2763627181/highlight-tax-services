@@ -250,12 +250,47 @@ const messageLimiter = rateLimit({
 
 /**
  * Directorio para almacenar archivos subidos
- * Ubicado fuera de la raíz web por seguridad
+ * 
+ * En Vercel/serverless, usar /tmp que es el único directorio escribible
+ * En desarrollo/producción tradicional, usar uploads/ en la raíz
  */
-const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+const uploadDir = (() => {
+  // En Vercel/serverless, usar /tmp
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const tmpDir = '/tmp/uploads';
+    try {
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+      return tmpDir;
+    } catch (error) {
+      console.warn('[Routes] Could not create /tmp/uploads, using /tmp:', error);
+      return '/tmp';
+    }
+  }
+  
+  // En desarrollo/producción tradicional
+  const localDir = path.join(process.cwd(), "uploads");
+  try {
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    return localDir;
+  } catch (error) {
+    console.warn('[Routes] Could not create uploads directory:', error);
+    // Fallback a /tmp si está disponible
+    try {
+      const tmpDir = '/tmp/uploads';
+      if (!fs.existsSync(tmpDir)) {
+        fs.mkdirSync(tmpDir, { recursive: true });
+      }
+      return tmpDir;
+    } catch {
+      // Último recurso: usar /tmp directamente
+      return '/tmp';
+    }
+  }
+})();
 
 /**
  * Tipos MIME permitidos para documentos tributarios
@@ -505,12 +540,17 @@ export async function registerRoutes(
     console.log('[Routes] Starting route registration...');
     
     // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
-    if (httpServer) {
+    if (httpServer && wsService) {
       console.log('[Routes] Initializing WebSocket service...');
-      wsService.initialize(httpServer);
-      console.log('[Routes] WebSocket service initialized');
+      try {
+        wsService.initialize(httpServer);
+        console.log('[Routes] WebSocket service initialized');
+      } catch (wsError) {
+        console.warn('[Routes] WebSocket initialization failed (non-critical):', wsError);
+        // No fallar si WebSocket no se puede inicializar
+      }
     } else {
-      console.log('[Routes] Skipping WebSocket (serverless mode)');
+      console.log('[Routes] Skipping WebSocket (serverless mode or wsService not available)');
     }
     
     // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
@@ -1320,13 +1360,19 @@ export async function registerRoutes(
           category: docCategory,
         }).catch(console.error);
 
-        // Notificación en tiempo real
-        wsService.notifyDocumentUpload(
-          authReq.user!.id,
-          authReq.user!.name,
-          req.file.originalname,
-          validCaseId || undefined
-        );
+        // Notificación en tiempo real (solo si wsService está disponible)
+        if (wsService) {
+          try {
+            wsService.notifyDocumentUpload(
+              authReq.user!.id,
+              authReq.user!.name,
+              req.file.originalname,
+              validCaseId || undefined
+            );
+          } catch (wsError) {
+            console.warn('[Routes] WebSocket notification failed (non-critical):', wsError);
+          }
+        }
 
         res.json(document);
       } catch (error) {
@@ -1474,12 +1520,18 @@ export async function registerRoutes(
         notes: notes || undefined,
       }).catch(console.error);
 
-      // Notificación en tiempo real
-      wsService.notifyNewAppointment(
-        authReq.user!.id,
-        parsedDate.toISOString(),
-        notes || "Consulta de impuestos"
-      );
+      // Notificación en tiempo real (solo si wsService está disponible)
+      if (wsService) {
+        try {
+          wsService.notifyNewAppointment(
+            authReq.user!.id,
+            parsedDate.toISOString(),
+            notes || "Consulta de impuestos"
+          );
+        } catch (wsError) {
+          console.warn('[Routes] WebSocket notification failed (non-critical):', wsError);
+        }
+      }
 
       res.json(appointment);
     } catch (error) {
@@ -1616,12 +1668,18 @@ export async function registerRoutes(
         details: `Mensaje enviado a ${recipient.name}`,
       });
 
-      // Notificación en tiempo real
-      wsService.notifyNewMessage(
-        authReq.user!.id,
-        recipientId,
-        message.substring(0, 100) + (message.length > 100 ? "..." : "")
-      );
+      // Notificación en tiempo real (solo si wsService está disponible)
+      if (wsService) {
+        try {
+          wsService.notifyNewMessage(
+            authReq.user!.id,
+            recipientId,
+            message.substring(0, 100) + (message.length > 100 ? "..." : "")
+          );
+        } catch (wsError) {
+          console.warn('[Routes] WebSocket notification failed (non-critical):', wsError);
+        }
+      }
 
       res.json(newMessage);
     } catch (error) {
@@ -1896,12 +1954,19 @@ export async function registerRoutes(
             notes: notes || undefined,
           }).catch(console.error);
 
-          wsService.notifyCaseStatusChange(
-            existingCase.clientId,
-            caseId,
-            status,
-            client.name
-          );
+          // Notificación en tiempo real (solo si wsService está disponible)
+          if (wsService) {
+            try {
+              wsService.notifyCaseStatusChange(
+                existingCase.clientId,
+                caseId,
+                status,
+                client.name
+              );
+            } catch (wsError) {
+              console.warn('[Routes] WebSocket notification failed (non-critical):', wsError);
+            }
+          }
         }
       }
 

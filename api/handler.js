@@ -84097,10 +84097,38 @@ var messageLimiter = rate_limit_default({
     message: "L\xEDmite de mensajes alcanzado. Espere un momento."
   }
 });
-var uploadDir = import_path2.default.join(process.cwd(), "uploads");
-if (!import_fs2.default.existsSync(uploadDir)) {
-  import_fs2.default.mkdirSync(uploadDir, { recursive: true });
-}
+var uploadDir = (() => {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const tmpDir = "/tmp/uploads";
+    try {
+      if (!import_fs2.default.existsSync(tmpDir)) {
+        import_fs2.default.mkdirSync(tmpDir, { recursive: true });
+      }
+      return tmpDir;
+    } catch (error) {
+      console.warn("[Routes] Could not create /tmp/uploads, using /tmp:", error);
+      return "/tmp";
+    }
+  }
+  const localDir = import_path2.default.join(process.cwd(), "uploads");
+  try {
+    if (!import_fs2.default.existsSync(localDir)) {
+      import_fs2.default.mkdirSync(localDir, { recursive: true });
+    }
+    return localDir;
+  } catch (error) {
+    console.warn("[Routes] Could not create uploads directory:", error);
+    try {
+      const tmpDir = "/tmp/uploads";
+      if (!import_fs2.default.existsSync(tmpDir)) {
+        import_fs2.default.mkdirSync(tmpDir, { recursive: true });
+      }
+      return tmpDir;
+    } catch {
+      return "/tmp";
+    }
+  }
+})();
 var ALLOWED_MIME_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -84184,12 +84212,16 @@ var VALID_CATEGORIES = [
 async function registerRoutes(httpServer2, app3) {
   try {
     console.log("[Routes] Starting route registration...");
-    if (httpServer2) {
+    if (httpServer2 && wsService) {
       console.log("[Routes] Initializing WebSocket service...");
-      wsService.initialize(httpServer2);
-      console.log("[Routes] WebSocket service initialized");
+      try {
+        wsService.initialize(httpServer2);
+        console.log("[Routes] WebSocket service initialized");
+      } catch (wsError) {
+        console.warn("[Routes] WebSocket initialization failed (non-critical):", wsError);
+      }
     } else {
-      console.log("[Routes] Skipping WebSocket (serverless mode)");
+      console.log("[Routes] Skipping WebSocket (serverless mode or wsService not available)");
     }
     console.log("[Routes] Setting up OAuth authentication...");
     await setupAuth(app3);
@@ -84646,12 +84678,18 @@ async function registerRoutes(httpServer2, app3) {
           fileName: req.file.originalname,
           category: docCategory
         }).catch(console.error);
-        wsService.notifyDocumentUpload(
-          authReq.user.id,
-          authReq.user.name,
-          req.file.originalname,
-          validCaseId || void 0
-        );
+        if (wsService) {
+          try {
+            wsService.notifyDocumentUpload(
+              authReq.user.id,
+              authReq.user.name,
+              req.file.originalname,
+              validCaseId || void 0
+            );
+          } catch (wsError) {
+            console.warn("[Routes] WebSocket notification failed (non-critical):", wsError);
+          }
+        }
         res.json(document2);
       } catch (error) {
         console.error("Error de carga:", error);
@@ -84736,11 +84774,17 @@ async function registerRoutes(httpServer2, app3) {
         appointmentDate: parsedDate,
         notes: notes || void 0
       }).catch(console.error);
-      wsService.notifyNewAppointment(
-        authReq.user.id,
-        parsedDate.toISOString(),
-        notes || "Consulta de impuestos"
-      );
+      if (wsService) {
+        try {
+          wsService.notifyNewAppointment(
+            authReq.user.id,
+            parsedDate.toISOString(),
+            notes || "Consulta de impuestos"
+          );
+        } catch (wsError) {
+          console.warn("[Routes] WebSocket notification failed (non-critical):", wsError);
+        }
+      }
       res.json(appointment);
     } catch (error) {
       console.error("Error creando cita:", error);
@@ -84815,11 +84859,17 @@ async function registerRoutes(httpServer2, app3) {
         action: "message_sent",
         details: `Mensaje enviado a ${recipient.name}`
       });
-      wsService.notifyNewMessage(
-        authReq.user.id,
-        recipientId,
-        message.substring(0, 100) + (message.length > 100 ? "..." : "")
-      );
+      if (wsService) {
+        try {
+          wsService.notifyNewMessage(
+            authReq.user.id,
+            recipientId,
+            message.substring(0, 100) + (message.length > 100 ? "..." : "")
+          );
+        } catch (wsError) {
+          console.warn("[Routes] WebSocket notification failed (non-critical):", wsError);
+        }
+      }
       res.json(newMessage);
     } catch (error) {
       console.error("Error enviando mensaje:", error);
@@ -84989,12 +85039,18 @@ async function registerRoutes(httpServer2, app3) {
             newStatus: status,
             notes: notes || void 0
           }).catch(console.error);
-          wsService.notifyCaseStatusChange(
-            existingCase.clientId,
-            caseId,
-            status,
-            client.name
-          );
+          if (wsService) {
+            try {
+              wsService.notifyCaseStatusChange(
+                existingCase.clientId,
+                caseId,
+                status,
+                client.name
+              );
+            } catch (wsError) {
+              console.warn("[Routes] WebSocket notification failed (non-critical):", wsError);
+            }
+          }
         }
       }
       res.json(updatedCase);
