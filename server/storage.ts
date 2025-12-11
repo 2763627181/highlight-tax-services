@@ -476,7 +476,7 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(insertUser)
+      .values(insertUser as any)
       .returning();
     return user;
   }
@@ -589,7 +589,7 @@ export class DatabaseStorage implements IStorage {
   async createAuthIdentity(identity: InsertAuthIdentity): Promise<AuthIdentity> {
     const [newIdentity] = await db
       .insert(authIdentities)
-      .values(identity)
+      .values(identity as any)
       .returning();
     return newIdentity;
   }
@@ -650,7 +650,7 @@ export class DatabaseStorage implements IStorage {
   async createTaxCase(taxCase: InsertTaxCase): Promise<TaxCase> {
     const [newCase] = await db
       .insert(taxCases)
-      .values(taxCase)
+      .values(taxCase as any)
       .returning();
     return newCase;
   }
@@ -750,7 +750,7 @@ export class DatabaseStorage implements IStorage {
   async createDocument(document: InsertDocument): Promise<Document> {
     const [newDoc] = await db
       .insert(documents)
-      .values(document)
+      .values(document as any)
       .returning();
     return newDoc;
   }
@@ -819,7 +819,7 @@ export class DatabaseStorage implements IStorage {
   async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
     const [newAppointment] = await db
       .insert(appointments)
-      .values(appointment)
+      .values(appointment as any)
       .returning();
     return newAppointment;
   }
@@ -942,7 +942,7 @@ export class DatabaseStorage implements IStorage {
   async createMessage(message: InsertMessage): Promise<Message> {
     const [newMessage] = await db
       .insert(messages)
-      .values(message)
+      .values(message as any)
       .returning();
     return newMessage;
   }
@@ -999,7 +999,7 @@ export class DatabaseStorage implements IStorage {
   async createContactSubmission(contact: InsertContactSubmission): Promise<ContactSubmission> {
     const [newContact] = await db
       .insert(contactSubmissions)
-      .values(contact)
+      .values(contact as any)
       .returning();
     return newContact;
   }
@@ -1033,7 +1033,7 @@ export class DatabaseStorage implements IStorage {
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
     const [newLog] = await db
       .insert(activityLogs)
-      .values(log)
+      .values(log as any)
       .returning();
     return newLog;
   }

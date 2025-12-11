@@ -170,6 +170,10 @@ export async function setupAuth(app: Express) {
   ) => {
     try {
       const claims = tokens.claims();
+      if (!claims) {
+        verified(new Error("No claims found in token"));
+        return;
+      }
       const user = await upsertOAuthUser(claims);
       const sessionUser = { ...user, claims, expires_at: claims.exp };
       updateUserSession(sessionUser, tokens);

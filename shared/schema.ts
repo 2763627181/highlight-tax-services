@@ -537,58 +537,58 @@ export const messagesRelations = relations(messages, ({ one }) => ({
  * Esquema de inserción para usuarios
  * Omite campos auto-generados (id, createdAt, updatedAt)
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para identidades OAuth
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertAuthIdentitySchema = createInsertSchema(authIdentities).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para casos tributarios
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertTaxCaseSchema = createInsertSchema(taxCases).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para documentos
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertDocumentSchema = createInsertSchema(documents).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para citas
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para mensajes
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para formulario de contacto

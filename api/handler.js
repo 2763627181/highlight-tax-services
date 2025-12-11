@@ -77518,6 +77518,10 @@ async function setupAuth(app3) {
     const verify = async (tokens, verified) => {
       try {
         const claims = tokens.claims();
+        if (!claims) {
+          verified(new Error("No claims found in token"));
+          return;
+        }
         const user = await upsertOAuthUser(claims);
         const sessionUser = { ...user, claims, expires_at: claims.exp };
         updateUserSession(sessionUser, tokens);
@@ -83771,7 +83775,8 @@ var WebSocketService = class {
       }
     });
     ws2.on("message", (data) => {
-      const messageSize = Buffer.byteLength(data);
+      const dataBuffer = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      const messageSize = dataBuffer.byteLength;
       if (messageSize > MAX_MESSAGE_SIZE) {
         log(`WebSocket security: user ${ws2.userId} sent message ${messageSize} bytes (limit: ${MAX_MESSAGE_SIZE}), closing`, "websocket");
         ws2.close(4003, "Message too large");
