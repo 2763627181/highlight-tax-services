@@ -616,6 +616,40 @@ export async function registerRoutes(
   });
 
   // ===========================================================================
+  // HEALTH CHECK Y DIAGNÓSTICO
+  // ===========================================================================
+
+  /**
+   * GET /api/health
+   * 
+   * Endpoint de health check para verificar que el servidor y la base de datos funcionan
+   * Útil para debugging y monitoreo
+   */
+  app.get("/api/health", async (_req: Request, res: Response) => {
+    try {
+      // Verificar conexión a la base de datos
+      await db.execute(sql`SELECT 1`);
+      
+      res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        database: "connected",
+        environment: process.env.NODE_ENV || "unknown"
+      });
+    } catch (error) {
+      console.error("[Health] Database check failed:", error);
+      res.status(503).json({
+        status: "error",
+        timestamp: new Date().toISOString(),
+        database: "disconnected",
+        error: process.env.NODE_ENV !== 'production' 
+          ? (error instanceof Error ? error.message : String(error))
+          : undefined
+      });
+    }
+  });
+
+  // ===========================================================================
   // ENDPOINTS DE AUTENTICACIÓN
   // ===========================================================================
 
@@ -651,6 +685,18 @@ export async function registerRoutes(
     res.setHeader('Content-Type', 'application/json');
     
     try {
+      // Verificar que storage esté disponible
+      if (!storage) {
+        throw new Error("Storage no está inicializado");
+      }
+      
+      // Verificar conexión a la base de datos antes de continuar
+      try {
+        await db.execute(sql`SELECT 1`);
+      } catch (dbError) {
+        console.error("[Register] Database connection error:", dbError);
+        throw new Error("No se pudo conectar a la base de datos. Verifica DATABASE_URL.");
+      }
       // Validar datos de entrada
       const result = registerSchema.safeParse(req.body);
       if (!result.success) {

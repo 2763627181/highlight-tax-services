@@ -84258,6 +84258,15 @@ async function registerRoutes(httpServer2, app3) {
   app3.post("/api/auth/register", authLimiter, async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
+      if (!storage) {
+        throw new Error("Storage no est\xE1 inicializado");
+      }
+      try {
+        await db.execute(sql`SELECT 1`);
+      } catch (dbError) {
+        console.error("[Register] Database connection error:", dbError);
+        throw new Error("No se pudo conectar a la base de datos. Verifica DATABASE_URL.");
+      }
       const result = registerSchema2.safeParse(req.body);
       if (!result.success) {
         res.status(400).json({
