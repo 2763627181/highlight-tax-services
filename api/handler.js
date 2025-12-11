@@ -84297,8 +84297,18 @@ async function registerRoutes(httpServer2, app3) {
       });
     } catch (error) {
       console.error("Error de registro:", error);
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      } else {
+        console.error("Error object:", JSON.stringify(error, null, 2));
+      }
       if (!res.headersSent) {
-        res.status(500).json({ message: "Error al registrar usuario" });
+        const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+        res.status(500).json({
+          message: "Error al registrar usuario",
+          error: false ? errorMessage : void 0
+        });
       }
     }
   });

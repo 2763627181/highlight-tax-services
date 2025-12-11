@@ -707,9 +707,22 @@ export async function registerRoutes(
       });
     } catch (error) {
       console.error("Error de registro:", error);
+      
+      // Log detallado del error para debugging
+      if (error instanceof Error) {
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      } else {
+        console.error("Error object:", JSON.stringify(error, null, 2));
+      }
+      
       // Asegurar que el error también devuelva JSON
       if (!res.headersSent) {
-        res.status(500).json({ message: "Error al registrar usuario" });
+        const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+        res.status(500).json({ 
+          message: "Error al registrar usuario",
+          error: process.env.NODE_ENV !== 'production' ? errorMessage : undefined
+        });
       }
     }
   });
