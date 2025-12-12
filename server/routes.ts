@@ -75,11 +75,12 @@ const JWT_SECRET: string = (() => {
 /**
  * Número de rondas de sal para bcrypt
  * Mayor número = más seguro pero más lento
- * 12 es el balance recomendado para producción
+ * 10 es un buen balance entre seguridad y velocidad en serverless
+ * (12 es más seguro pero puede causar timeouts en cold starts)
  * 
- * @security Aumentar si se detectan ataques de fuerza bruta
+ * @security Aumentar a 12 si se detectan ataques de fuerza bruta
  */
-const BCRYPT_ROUNDS = 12;
+const BCRYPT_ROUNDS = 10;
 
 /**
  * Duración del token JWT en días
@@ -740,15 +741,7 @@ export async function registerRoutes(
         throw new Error("Storage no está inicializado");
       }
       
-      // Verificar conexión a la base de datos antes de continuar
-      try {
-        await db.execute(sql`SELECT 1`);
-      } catch (dbError) {
-        console.error("[Register] Database connection error:", dbError);
-        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
-        throw new Error(`No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.`);
-      }
-      // Validar datos de entrada
+      // Validar datos de entrada (hacerlo primero, es más rápido)
       const result = registerSchema.safeParse(req.body);
       if (!result.success) {
         res.status(400).json({ 
@@ -760,15 +753,16 @@ export async function registerRoutes(
 
       const { email, password, name, phone } = result.data;
 
-      // Verificar email único
-      const existingUser = await storage.getUserByEmail(email);
+      // Verificar email único y hashear contraseña en paralelo (más rápido)
+      const [existingUser, hashedPassword] = await Promise.all([
+        storage.getUserByEmail(email),
+        bcrypt.hash(password, BCRYPT_ROUNDS)
+      ]);
+      
       if (existingUser) {
         res.status(400).json({ message: "Este email ya está registrado" });
         return;
       }
-
-      // Hashear contraseña con bcrypt
-      const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
       // Crear usuario
       const user = await storage.createUser({

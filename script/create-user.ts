@@ -15,7 +15,7 @@ import { users } from '../shared/schema';
 import { eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 
-const BCRYPT_ROUNDS = 12;
+const BCRYPT_ROUNDS = 10; // Reducido para mejor rendimiento (sigue siendo seguro)
 
 async function createUser() {
   const args = process.argv.slice(2);
