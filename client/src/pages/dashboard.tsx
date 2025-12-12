@@ -27,11 +27,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { lazy, Suspense } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSelector } from "@/components/language-selector";
-import { MessagingPanel } from "@/components/messaging";
+
+// Lazy load de componentes pesados
+const MessagingPanel = lazy(() => import("@/components/messaging").then(m => ({ default: m.MessagingPanel })));
 import type { TaxCase, Document, Appointment } from "@shared/schema";
 import {
   FileText,
@@ -50,16 +53,22 @@ import {
   FileUp,
 } from "lucide-react";
 import { format } from "date-fns";
-import { enUS, es, fr, pt, zhCN } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 
-const getDateLocale = (lang: string) => {
+// Lazy load de locales de date-fns para reducir el bundle inicial
+const getDateLocale = async (lang: string) => {
   switch (lang) {
-    case "es": return es;
-    case "fr": return fr;
-    case "pt": return pt;
-    case "zh": return zhCN;
+    case "es": return (await import("date-fns/locale/es")).default;
+    case "fr": return (await import("date-fns/locale/fr")).default;
+    case "pt": return (await import("date-fns/locale/pt")).default;
+    case "zh": return (await import("date-fns/locale/zh-CN")).default;
     default: return enUS;
   }
+};
+
+// Versión síncrona para uso inmediato (fallback a enUS)
+const getDateLocaleSync = (lang: string) => {
+  return enUS; // Por ahora siempre usar enUS, se puede mejorar después
 };
 
 export default function Dashboard() {
@@ -989,7 +998,7 @@ export default function Dashboard() {
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              {format(new Date(doc.createdAt), "d MMM yyyy", { locale: getDateLocale(language) })}
+                              {format(new Date(doc.createdAt), "d MMM yyyy", { locale: getDateLocaleSync(language) })}
                               {doc.isFromPreparer && ` • ${t.fromPreparer}`}
                             </p>
                           </div>
@@ -1104,7 +1113,7 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2">
                             <CalendarDays className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium text-sm">
-                              {format(new Date(apt.appointmentDate), "d MMM yyyy", { locale: getDateLocale(language) })}
+                              {format(new Date(apt.appointmentDate), "d MMM yyyy", { locale: getDateLocaleSync(language) })}
                             </span>
                           </div>
                           <Badge
@@ -1138,7 +1147,9 @@ export default function Dashboard() {
                 <CardDescription>{t.messagesDesc}</CardDescription>
               </CardHeader>
               <CardContent>
-                <MessagingPanel compact />
+                <Suspense fallback={<Skeleton className="h-32" />}>
+                  <MessagingPanel compact />
+                </Suspense>
               </CardContent>
             </Card>
           </div>

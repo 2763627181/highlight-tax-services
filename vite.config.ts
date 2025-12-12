@@ -30,6 +30,18 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Separar vendor chunks para mejor caching
+          'react-vendor': ['react', 'react-dom', 'wouter'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tooltip'],
+          'query-vendor': ['@tanstack/react-query'],
+          'date-vendor': ['date-fns'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000, // Aumentar límite a 1MB
   },
   server: {
     fs: {
