@@ -76,34 +76,46 @@ async function buildAll() {
     platform: "node",
     bundle: true,
     format: "cjs",
-    outfile: "api/handler.js",
+    outfile: "api/index.js", // Cambiar a index.js para que coincida con vercel.json
     define: {
       "process.env.NODE_ENV": '"production"',
     },
     minify: false,
     external: [],
     logLevel: "info",
+    banner: {
+      js: '// @ts-nocheck\n',
+    },
   });
   
   // Asegurar que el handler se exporte correctamente para Vercel
   try {
-    const handlerContent = await readFile("api/handler.js", "utf-8");
+    const handlerContent = await readFile("api/index.js", "utf-8");
     
     // Asegurar que el export sea compatible con Vercel
     // Vercel espera module.exports o module.exports.default
     let fixedContent = handlerContent;
     
+    // Si el archivo termina con export default, necesitamos convertirlo a module.exports
+    if (handlerContent.includes('export default') || handlerContent.includes('export {') || handlerContent.includes('export ')) {
+      // Reemplazar exports ES6 con module.exports
+      fixedContent = handlerContent
+        .replace(/export\s+default\s+(\w+);?/g, 'module.exports = $1;')
+        .replace(/export\s*{\s*(\w+)\s*};?/g, 'module.exports = $1;')
+        .replace(/export\s+(\w+);?/g, 'module.exports.$1 = $1;');
+    }
+    
     // Si tiene __toCommonJS, asegurar que el default se exporte correctamente
     if (handlerContent.includes('__toCommonJS') || handlerContent.includes('module.exports')) {
       // Verificar si ya tiene el export correcto
-      if (!handlerContent.includes('module.exports = handlerFn') && 
+      if (!handlerContent.includes('module.exports = wrappedHandler') && 
           !handlerContent.includes('module.exports.default') &&
-          handlerContent.includes('handlerFn')) {
+          handlerContent.includes('wrappedHandler')) {
         // Agregar compatibilidad al final del archivo
-        fixedContent = handlerContent + `
+        fixedContent = fixedContent + `
 // Compatibilidad con Vercel: asegurar que el handler esté disponible
 if (typeof module !== 'undefined' && module.exports) {
-  const handler = module.exports.default || module.exports;
+  const handler = module.exports.default || module.exports.wrappedHandler || module.exports;
   if (handler && typeof handler === 'function') {
     module.exports = handler;
   }
@@ -111,7 +123,7 @@ if (typeof module !== 'undefined' && module.exports) {
       }
     }
     
-    await writeFile("api/handler.js", fixedContent);
+    await writeFile("api/index.js", fixedContent);
     console.log("Handler export fixed for Vercel compatibility");
   } catch (error) {
     console.warn("Could not fix handler export:", error);
