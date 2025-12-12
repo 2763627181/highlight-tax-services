@@ -34,12 +34,22 @@ async function handlerFn(req: any, res: any) {
   // Inicializar la app si no está inicializada
   if (!app || !handler) {
     try {
+      console.log('[API] ========== INITIALIZING ==========');
       console.log('[API] Initializing Express app for Vercel...');
       console.log('[API] Environment check:', {
         hasDatabaseUrl: !!process.env.DATABASE_URL,
         hasSessionSecret: !!process.env.SESSION_SECRET,
         nodeEnv: process.env.NODE_ENV,
+        hasViteAppUrl: !!process.env.VITE_APP_URL,
       });
+      
+      // Validar variables críticas antes de continuar
+      if (!process.env.DATABASE_URL) {
+        throw new Error('DATABASE_URL is required but not set');
+      }
+      if (!process.env.SESSION_SECRET) {
+        throw new Error('SESSION_SECRET is required but not set');
+      }
       
       // Crear la app Express
       console.log('[API] Creating Express app...');
