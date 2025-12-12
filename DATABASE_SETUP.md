@@ -334,3 +334,4 @@ Una vez que tengas un usuario admin, puedes:
    - Los deletes en cascada están configurados
    - Los timestamps se generan automáticamente
 
+

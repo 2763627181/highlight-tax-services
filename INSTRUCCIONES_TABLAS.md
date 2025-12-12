@@ -221,3 +221,4 @@ Después de crear las tablas, verifica que:
 - El schema `vault` es de Supabase para almacenar secretos (no lo uses para tus tablas)
 - Siempre usa el schema `public` para tus tablas de aplicación
 
+

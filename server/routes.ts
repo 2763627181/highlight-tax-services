@@ -779,17 +779,7 @@ export async function registerRoutes(
         role: "client",
       });
 
-      // Registrar actividad
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "user_registered",
-        details: `Nuevo usuario registrado: ${email}`,
-      });
-
-      // Enviar email de bienvenida (no bloquea la respuesta)
-      sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
-
-      // Generar token JWT
+      // Generar token JWT (hacerlo antes de operaciones asíncronas)
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         JWT_SECRET,
@@ -799,9 +789,22 @@ export async function registerRoutes(
       // Establecer cookie segura
       res.cookie("token", token, COOKIE_OPTIONS);
 
+      // Responder inmediatamente al cliente
       res.json({
         user: { id: user.id, email: user.email, role: user.role, name: user.name },
       });
+
+      // Operaciones asíncronas después de responder (no bloquean)
+      Promise.all([
+        // Registrar actividad (puede fallar sin afectar al usuario)
+        storage.createActivityLog({
+          userId: user.id,
+          action: "user_registered",
+          details: `Nuevo usuario registrado: ${email}`,
+        }).catch(err => console.error("[Register] Error logging activity:", err)),
+        // Enviar email de bienvenida (puede fallar sin afectar al usuario)
+        sendWelcomeEmail({ name: user.name, email: user.email }).catch(err => console.error("[Register] Error sending welcome email:", err))
+      ]).catch(err => console.error("[Register] Error in background tasks:", err));
     } catch (error) {
       console.error("Error de registro:", error);
       

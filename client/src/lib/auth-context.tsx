@@ -42,12 +42,12 @@ import type { User } from "@shared/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
 
 /**
- * Timeout para peticiones fetch (30 segundos)
- * Implementado para solucionar errores de conexión en registro
- * Versión: 1.2.0 - FIX: Errores JSON y conexión
+ * Timeout para peticiones fetch (60 segundos)
+ * Aumentado para registro que puede tardar más en serverless (cold start + bcrypt)
+ * Versión: 1.2.2 - FIX: Timeout aumentado para registro
  * Última actualización: 2025-12-11
  */
-const FETCH_TIMEOUT = 30000;
+const FETCH_TIMEOUT = 60000; // 60 segundos para dar tiempo a cold starts y operaciones pesadas
 
 /**
  * Realiza una petición fetch con timeout
