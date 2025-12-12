@@ -12,7 +12,8 @@
     "db:setup": "tsx script/setup-database.ts",
     "db:execute-sql": "tsx script/execute-sql.ts",
     "db:check": "tsx script/check-tables.ts",
-    "create-user": "tsx script/create-user.ts"
+    "create-user": "tsx script/create-user.ts",
+    "verify-supabase": "tsx script/verificar-supabase-config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
