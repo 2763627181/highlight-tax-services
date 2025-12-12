@@ -909,12 +909,12 @@ export class DatabaseStorage implements IStorage {
 
     // Construir respuesta con datos del partner
     const conversations = [];
-    for (const [partnerId, data] of conversationMap) {
+    for (const [partnerId, data] of Array.from(conversationMap)) {
       const partner = await this.getUser(partnerId);
       if (partner) {
         // Contar mensajes no leídos enviados al usuario actual
         const unreadCount = data.messages.filter(
-          m => m.recipientId === userId && !m.isRead
+          (m: any) => m.recipientId === userId && !m.isRead
         ).length;
         
         conversations.push({

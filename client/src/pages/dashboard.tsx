@@ -58,10 +58,10 @@ import { enUS } from "date-fns/locale";
 // Lazy load de locales de date-fns para reducir el bundle inicial
 const getDateLocale = async (lang: string) => {
   switch (lang) {
-    case "es": return (await import("date-fns/locale/es")).default;
-    case "fr": return (await import("date-fns/locale/fr")).default;
-    case "pt": return (await import("date-fns/locale/pt")).default;
-    case "zh": return (await import("date-fns/locale/zh-CN")).default;
+    case "es": return (await import("date-fns/locale/es")).es;
+    case "fr": return (await import("date-fns/locale/fr")).fr;
+    case "pt": return (await import("date-fns/locale/pt")).pt;
+    case "zh": return (await import("date-fns/locale/zh-CN")).zhCN;
     default: return enUS;
   }
 };
@@ -1148,7 +1148,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <Suspense fallback={<Skeleton className="h-32" />}>
-                  <MessagingPanel compact />
+                  <MessagingPanel />
                 </Suspense>
               </CardContent>
             </Card>

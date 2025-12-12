@@ -593,29 +593,29 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
 /**
  * Esquema de inserción para formulario de contacto
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertContactSubmissionSchema = createInsertSchema(contactSubmissions).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para logs de actividad
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 /**
  * Esquema de inserción para tokens de recuperación de contraseña
  */
-// @ts-expect-error - drizzle-zod omit() tiene problemas de tipos conocidos
+// @ts-ignore - drizzle-zod omit() tiene problemas de tipos conocidos
 export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
   id: true,
   createdAt: true,
-});
+} as any);
 
 /**
  * Esquema de validación para login
