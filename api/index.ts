@@ -35,9 +35,16 @@ async function handlerFn(req: any, res: any) {
   if (!app || !handler) {
     try {
       console.log('[API] Initializing Express app for Vercel...');
+      console.log('[API] Environment check:', {
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        hasSessionSecret: !!process.env.SESSION_SECRET,
+        nodeEnv: process.env.NODE_ENV,
+      });
       
       // Crear la app Express
+      console.log('[API] Creating Express app...');
       app = await createApp(undefined);
+      console.log('[API] Express app created successfully');
       
       // En producción, servir archivos estáticos DESPUÉS de las rutas API
       // Esto asegura que /api/* tenga prioridad sobre archivos estáticos
@@ -69,8 +76,16 @@ async function handlerFn(req: any, res: any) {
       console.log('[API] Express app initialized successfully');
     } catch (error) {
       const err = error as Error;
+      console.error('[API] ========== CRITICAL ERROR ==========');
       console.error('[API] Error initializing Express app:', err.message);
+      console.error('[API] Error name:', err.name);
       console.error('[API] Error stack:', err.stack);
+      console.error('[API] Environment at error:', {
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        hasSessionSecret: !!process.env.SESSION_SECRET,
+        nodeEnv: process.env.NODE_ENV,
+      });
+      console.error('[API] =====================================');
       initError = err;
       // @ts-ignore - process está disponible en runtime
       const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
