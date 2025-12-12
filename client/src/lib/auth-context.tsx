@@ -73,8 +73,23 @@ async function fetchWithTimeout(
     return response;
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("Network error. Request timeout. Please check your internet connection and try again.");
+    if (error instanceof Error) {
+      // Distinguir entre diferentes tipos de errores
+      if (error.name === "AbortError") {
+        throw new Error("La solicitud tardó demasiado. Por favor, intenta de nuevo.");
+      }
+      // Si es un error de red real (sin conexión), mostrar mensaje específico
+      if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+        // Verificar si realmente hay conexión intentando una petición simple
+        try {
+          await fetch("/api/health", { method: "GET", signal: AbortSignal.timeout(2000) });
+          // Si llegamos aquí, hay conexión pero el endpoint específico falló
+          throw new Error("Error del servidor. Por favor, intenta de nuevo.");
+        } catch {
+          // Si falla el health check, probablemente no hay conexión
+          throw new Error("Error de conexión. Verifica tu internet e intenta de nuevo.");
+        }
+      }
     }
     throw error;
   }

@@ -77534,12 +77534,15 @@ async function setupAuth(app3) {
     const ensureStrategy = (domain) => {
       const strategyName = `replitauth:${domain}`;
       if (!registeredStrategies.has(strategyName)) {
+        const baseUrl2 = process.env.VITE_APP_URL || `https://${domain}`;
+        const callbackURL = `${baseUrl2}/api/auth/oidc/callback`;
+        console.log(`[Auth] Setting up OAuth strategy for ${domain} with callback: ${callbackURL}`);
         const strategy = new Strategy(
           {
             name: strategyName,
             config,
             scope: "openid email profile offline_access",
-            callbackURL: `https://${domain}/api/auth/oidc/callback`
+            callbackURL
           },
           verify
         );

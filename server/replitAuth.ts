@@ -188,12 +188,18 @@ export async function setupAuth(app: Express) {
   const ensureStrategy = (domain: string) => {
     const strategyName = `replitauth:${domain}`;
     if (!registeredStrategies.has(strategyName)) {
+      // Usar VITE_APP_URL si está disponible, sino usar el dominio de la request
+      const baseUrl = process.env.VITE_APP_URL || `https://${domain}`;
+      const callbackURL = `${baseUrl}/api/auth/oidc/callback`;
+      
+      console.log(`[Auth] Setting up OAuth strategy for ${domain} with callback: ${callbackURL}`);
+      
       const strategy = new Strategy(
         {
           name: strategyName,
           config,
           scope: "openid email profile offline_access",
-          callbackURL: `https://${domain}/api/auth/oidc/callback`,
+          callbackURL,
         },
         verify,
       );
@@ -217,15 +223,21 @@ export async function setupAuth(app: Express) {
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, (err: any, user: any) => {
       if (err || !user) {
-        return res.redirect("/portal?error=auth_failed");
+        console.error('[Auth] OAuth callback error:', err);
+        // Usar URL absoluta para el redirect
+        const baseUrl = process.env.VITE_APP_URL || `${req.protocol}://${req.hostname}`;
+        return res.redirect(`${baseUrl}/portal?error=auth_failed`);
       }
 
       issueAuthToken(res, user);
       
+      // Usar URL absoluta para los redirects
+      const baseUrl = process.env.VITE_APP_URL || `${req.protocol}://${req.hostname}`;
+      
       if (user.role === "admin" || user.role === "preparer") {
-        return res.redirect("/admin");
+        return res.redirect(`${baseUrl}/admin`);
       }
-      return res.redirect("/dashboard");
+      return res.redirect(`${baseUrl}/dashboard`);
     })(req, res, next);
   });
 
