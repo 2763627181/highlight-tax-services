@@ -566,16 +566,22 @@ export default function Dashboard() {
   const { data: cases, isLoading: casesLoading } = useQuery<TaxCase[]>({
     queryKey: ["/api/cases"],
     enabled: !!user,
+    staleTime: 30000, // Cache por 30 segundos
+    gcTime: 5 * 60 * 1000, // Mantener en cache por 5 minutos
   });
 
   const { data: documents, isLoading: documentsLoading } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
     enabled: !!user,
+    staleTime: 30000, // Cache por 30 segundos
+    gcTime: 5 * 60 * 1000, // Mantener en cache por 5 minutos
   });
 
   const { data: appointments, isLoading: appointmentsLoading } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
     enabled: !!user,
+    staleTime: 30000, // Cache por 30 segundos
+    gcTime: 5 * 60 * 1000, // Mantener en cache por 5 minutos
   });
 
   const uploadMutation = useMutation({

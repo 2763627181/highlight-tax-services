@@ -113,6 +113,13 @@ export function useWebSocket(token: string | null) {
     // No conectar si no hay token o ya está conectado
     if (!token || wsRef.current?.readyState === WebSocket.OPEN) return;
 
+    // En Vercel/serverless, WebSocket no está disponible
+    // Solo intentar conectar en desarrollo o si hay un servidor HTTP real
+    if (typeof window === 'undefined' || !window.WebSocket) {
+      console.log('[WebSocket] WebSocket no disponible en este entorno');
+      return;
+    }
+
     // Construir URL con protocolo correcto
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsUrl = `${protocol}//${window.location.host}/ws?token=${token}`;
@@ -161,10 +168,13 @@ export function useWebSocket(token: string | null) {
         wsRef.current = null;
 
         // Reconectar solo si no es error de autenticación y hay token
-        if (event.code !== 4001 && token) {
+        // No reconectar si es un error de servidor (5000+) o si WebSocket no está disponible
+        if (event.code !== 4001 && token && event.code < 5000) {
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, RECONNECT_DELAY);
+        } else {
+          console.log('[WebSocket] No reconectando:', event.code === 4001 ? 'Token inválido' : 'Error del servidor');
         }
       };
 
@@ -173,10 +183,12 @@ export function useWebSocket(token: string | null) {
        * Solo logging, el cierre se maneja en onclose
        */
       wsRef.current.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        console.warn("WebSocket connection error (non-critical):", error);
+        // No mostrar error al usuario, WebSocket es opcional
       };
     } catch (error) {
-      console.error("Failed to connect WebSocket:", error);
+      console.warn("Failed to create WebSocket (non-critical):", error);
+      // No establecer estado de error, WebSocket es opcional
     }
   }, [token]);
 

@@ -220,9 +220,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (result.data && result.data.token) {
           setWsToken(result.data.token);
         }
+      } else {
+        // Si falla, no es crítico - WebSocket es opcional
+        console.log('[Auth] WebSocket token no disponible (no crítico)');
+        setWsToken(null);
       }
     } catch (error) {
-      console.error("Failed to fetch WS token:", error);
+      // WebSocket es opcional, no mostrar error al usuario
+      console.log('[Auth] WebSocket token no disponible (no crítico):', error);
+      setWsToken(null);
     }
   }, []);
 
