@@ -60283,12 +60283,12 @@ var require_serverless_http = __commonJS({
   }
 });
 
-// api/index.ts
-var index_exports = {};
-__export(index_exports, {
-  default: () => index_default
+// server/api-handler.ts
+var api_handler_exports = {};
+__export(api_handler_exports, {
+  default: () => api_handler_default
 });
-module.exports = __toCommonJS(index_exports);
+module.exports = __toCommonJS(api_handler_exports);
 
 // server/app.ts
 var import_express3 = __toESM(require_express2(), 1);
@@ -85314,8 +85314,8 @@ async function createApp(httpServer2) {
   return app3;
 }
 
-// api/index.ts
-var import_serverless_http = __toESM(require_serverless_http());
+// server/api-handler.ts
+var import_serverless_http = __toESM(require_serverless_http(), 1);
 var app2 = null;
 var handler = null;
 var initError = null;
@@ -85430,7 +85430,7 @@ var wrappedHandler = async (req, res) => {
     }
   }
 };
-var index_default = wrappedHandler;
+var api_handler_default = wrappedHandler;
 /*! Bundled license information:
 
 depd/index.js:

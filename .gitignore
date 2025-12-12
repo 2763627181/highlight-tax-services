@@ -4,6 +4,8 @@ node_modules
 # Build output
 dist
 server/public
+api/index.js
+api/handler.js
 
 # OS files
 .DS_Store

@@ -72,11 +72,11 @@ async function buildAll() {
   await writeFile("api/package.json", JSON.stringify(apiPackageJson, null, 2));
   
   await esbuild({
-    entryPoints: ["api/index.ts"],
+    entryPoints: ["server/api-handler.ts"], // Cambiar a server/api-handler.ts
     platform: "node",
     bundle: true,
     format: "cjs",
-    outfile: "api/index.js", // Cambiar a index.js para que coincida con vercel.json
+    outfile: "api/index.js", // Generar api/index.js para Vercel
     define: {
       "process.env.NODE_ENV": '"production"',
     },
