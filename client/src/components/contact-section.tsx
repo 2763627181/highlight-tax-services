@@ -39,8 +39,8 @@ export function ContactSection() {
 
   const content = {
     en: {
-      title: "Contact Us",
-      subtitle: "Have questions? Send us a message and we'll respond as soon as possible.",
+      title: "Contact a Tax Professional in Bronx, NY",
+      subtitle: "Have questions or ready to get started? Request a consultation or access your secure client portal to upload documents and begin your tax filing process today.",
       formTitle: "Contact Form",
       nameLabel: "Name *",
       namePlaceholder: "Your full name",

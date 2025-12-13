@@ -83,43 +83,43 @@ export function ServicesSection() {
     en: [
       {
         icon: FileText,
-        title: "Personal Tax Preparation (1040)",
-        description: "Individual tax returns for W-2 employees. We maximize your deductions and credits to get the best possible refund.",
+        title: "Personal Tax Preparation (Form 1040)",
+        description: "Professional tax preparation for individuals and families. Submit documents securely through our client portal and receive expert guidance from start to finish.",
         highlight: "Popular",
         serviceKey: "personal",
       },
       {
         icon: Car,
-        title: "Self-Employed / 1099",
-        description: "Specialized services for independent workers from Uber, Lyft, DoorDash and more. Includes mileage and expense deductions.",
+        title: "Self-Employed / 1099 Filers",
+        description: "Specialized services for independent workers and contractors. Upload mileage logs, expense records, and income forms securely — no paperwork hassle.",
         highlight: null,
         serviceKey: "self-employed",
       },
       {
         icon: Building2,
         title: "Business Taxes (LLC, Schedule C)",
-        description: "Complete tax preparation for small businesses, LLCs and self-employed individuals with Schedule C.",
+        description: "Complete tax preparation for small businesses and LLCs. Our portal supports ongoing document sharing and year-round organization for business owners.",
         highlight: null,
         serviceKey: "business",
       },
       {
         icon: CreditCard,
-        title: "ITIN (Application and Renewal)",
-        description: "Complete assistance to obtain or renew your Individual Taxpayer Identification Number (ITIN) from the IRS.",
+        title: "ITIN Applications & Renewals",
+        description: "Secure assistance with ITIN applications and renewals. Submit documents safely and track progress without repeated office visits.",
         highlight: "Special Service",
         serviceKey: "itin",
       },
       {
         icon: BookOpen,
         title: "Monthly Bookkeeping",
-        description: "We keep your accounting books up to date with monthly bookkeeping service for your business.",
+        description: "Ongoing bookkeeping services with secure document exchange and organized financial records accessible through your portal.",
         highlight: null,
         serviceKey: "bookkeeping",
       },
       {
         icon: FileEdit,
-        title: "Tax Amendments (1040X)",
-        description: "Corrections and amendments to previously filed tax returns. Recover lost refunds.",
+        title: "Tax Amendments (Form 1040X)",
+        description: "Correct or amend previously filed returns. Retrieve prior filings and submit updated documentation securely.",
         highlight: null,
         serviceKey: "amendments",
       },
@@ -347,30 +347,66 @@ export function ServicesSection() {
   };
 
   const sectionTitle = {
-    en: "Our Services",
-    es: "Nuestros Servicios",
-    fr: "Nos Services",
-    pt: "Nossos Serviços",
-    zh: "我们的服务",
-    ht: "Sèvis Nou Yo",
+    en: "Our Tax Preparation Services",
+    es: "Nuestros Servicios de Preparación de Impuestos",
+    fr: "Nos Services de Préparation Fiscale",
+    pt: "Nossos Serviços de Preparação de Impostos",
+    zh: "我们的税务准备服务",
+    ht: "Sèvis Preparasyon Taks Nou Yo",
   };
 
   const sectionSubtitle = {
-    en: "We offer a complete range of tax preparation services for individuals and businesses throughout the United States.",
-    es: "Ofrecemos una gama completa de servicios de preparación de impuestos para individuos y empresas en todo Estados Unidos.",
-    fr: "Nous offrons une gamme complète de services de préparation fiscale pour les particuliers et les entreprises à travers les États-Unis.",
-    pt: "Oferecemos uma gama completa de serviços de preparação de impostos para indivíduos e empresas em todos os Estados Unidos.",
-    zh: "我们为全美的个人和企业提供完整的税务准备服务。",
-    ht: "Nou ofri yon seri konplè sèvis preparasyon taks pou moun ak biznis nan tout Etazini.",
+    en: "We provide comprehensive tax and accounting services for individuals and businesses in Bronx, NY and nationwide, supported by secure virtual tools.",
+    es: "Brindamos servicios integrales de impuestos y contabilidad para individuos y empresas en Bronx, NY y a nivel nacional, respaldados por herramientas virtuales seguras.",
+    fr: "Nous fournissons des services fiscaux et comptables complets pour les particuliers et les entreprises à Bronx, NY et dans tout le pays, soutenus par des outils virtuels sécurisés.",
+    pt: "Fornecemos serviços fiscais e contábeis abrangentes para indivíduos e empresas em Bronx, NY e em todo o país, apoiados por ferramentas virtuais seguras.",
+    zh: "我们为布朗克斯，纽约和全国的个人和企业提供全面的税务和会计服务，由安全的虚拟工具支持。",
+    ht: "Nou bay sèvis taks ak kontabilite konplè pou moun ak biznis nan Bronx, NY ak nan tout peyi a, sipòte pa zouti virtual sekirize.",
   };
 
   const requestInfoButton = {
-    en: "Request Information",
-    es: "Solicitar Información",
-    fr: "Demander des Informations",
-    pt: "Solicitar Informações",
-    zh: "请求信息",
-    ht: "Mande Enfòmasyon",
+    en: "Request a Tax Consultation",
+    es: "Solicitar Consulta Fiscal",
+    fr: "Demander une Consultation Fiscale",
+    pt: "Solicitar Consulta Fiscal",
+    zh: "请求税务咨询",
+    ht: "Mande Konsiltasyon Taks",
+  };
+
+  const requestBusinessButton = {
+    en: "Request a Business Tax Consultation",
+    es: "Solicitar Consulta Fiscal Empresarial",
+    fr: "Demander une Consultation Fiscale d'Entreprise",
+    pt: "Solicitar Consulta Fiscal Empresarial",
+    zh: "请求企业税务咨询",
+    ht: "Mande Konsiltasyon Taks Biznis",
+  };
+
+  const requestITINButton = {
+    en: "Request ITIN Assistance",
+    es: "Solicitar Asistencia ITIN",
+    fr: "Demander de l'Aide ITIN",
+    pt: "Solicitar Assistência ITIN",
+    zh: "请求ITIN协助",
+    ht: "Mande Asistans ITIN",
+  };
+
+  const requestBookkeepingButton = {
+    en: "Request Bookkeeping Support",
+    es: "Solicitar Soporte de Contabilidad",
+    fr: "Demander un Soutien Comptable",
+    pt: "Solicitar Suporte de Contabilidade",
+    zh: "请求记账支持",
+    ht: "Mande Sipò Kontabilite",
+  };
+
+  const requestAmendmentButton = {
+    en: "Request Amendment Review",
+    es: "Solicitar Revisión de Enmienda",
+    fr: "Demander une Révision d'Amendement",
+    pt: "Solicitar Revisão de Emenda",
+    zh: "请求修正审查",
+    ht: "Mande Revizyon Koreksyon",
   };
 
   const currentServices = services[language as keyof typeof services] || services.en;
@@ -427,7 +463,15 @@ export function ServicesSection() {
                     data-testid={`button-whatsapp-service-${index}`}
                   >
                     <SiWhatsapp className="h-4 w-4 text-[#25D366]" />
-                    {requestInfoButton[language as keyof typeof requestInfoButton] || requestInfoButton.en}
+                    {service.serviceKey === "business" 
+                      ? (requestBusinessButton[language as keyof typeof requestBusinessButton] || requestBusinessButton.en)
+                      : service.serviceKey === "itin"
+                      ? (requestITINButton[language as keyof typeof requestITINButton] || requestITINButton.en)
+                      : service.serviceKey === "bookkeeping"
+                      ? (requestBookkeepingButton[language as keyof typeof requestBookkeepingButton] || requestBookkeepingButton.en)
+                      : service.serviceKey === "amendments"
+                      ? (requestAmendmentButton[language as keyof typeof requestAmendmentButton] || requestAmendmentButton.en)
+                      : (requestInfoButton[language as keyof typeof requestInfoButton] || requestInfoButton.en)}
                   </Button>
                 </a>
               </CardFooter>
