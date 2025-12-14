@@ -67,12 +67,12 @@ export function HeroSection() {
   };
 
   const heroHeadline = {
-    en: { part1: "Tax Preparation Services in Bronx, NY", highlight: "for Individuals and Businesses", part2: "" },
-    es: { part1: "Servicios de Preparación de Impuestos en Bronx, NY", highlight: "para Individuos y Empresas", part2: "" },
-    fr: { part1: "Services de Préparation Fiscale à Bronx, NY", highlight: "pour Particuliers et Entreprises", part2: "" },
-    pt: { part1: "Serviços de Preparação de Impostos em Bronx, NY", highlight: "para Indivíduos e Empresas", part2: "" },
-    zh: { part1: "布朗克斯，纽约的税务准备服务", highlight: "面向个人和企业", part2: "" },
-    ht: { part1: "Sèvis Preparasyon Taks nan Bronx, NY", highlight: "pou Moun ak Biznis", part2: "" },
+    en: { part1: "Tax Preparation Services Nationwide", highlight: "for Individuals and Businesses", part2: "" },
+    es: { part1: "Servicios de Preparación de Impuestos a Nivel Nacional", highlight: "para Individuos y Empresas", part2: "" },
+    fr: { part1: "Services de Préparation Fiscale à l'Échelle Nationale", highlight: "pour Particuliers et Entreprises", part2: "" },
+    pt: { part1: "Serviços de Preparação de Impostos em Todo o País", highlight: "para Indivíduos e Empresas", part2: "" },
+    zh: { part1: "全国税务准备服务", highlight: "面向个人和企业", part2: "" },
+    ht: { part1: "Sèvis Preparasyon Taks nan Tout Peyi a", highlight: "pou Moun ak Biznis", part2: "" },
   };
 
   const heroDescription = {

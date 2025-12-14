@@ -356,12 +356,12 @@ export function ServicesSection() {
   };
 
   const sectionSubtitle = {
-    en: "We provide comprehensive tax and accounting services for individuals and businesses in Bronx, NY and nationwide, supported by secure virtual tools.",
-    es: "Brindamos servicios integrales de impuestos y contabilidad para individuos y empresas en Bronx, NY y a nivel nacional, respaldados por herramientas virtuales seguras.",
-    fr: "Nous fournissons des services fiscaux et comptables complets pour les particuliers et les entreprises à Bronx, NY et dans tout le pays, soutenus par des outils virtuels sécurisés.",
-    pt: "Fornecemos serviços fiscais e contábeis abrangentes para indivíduos e empresas em Bronx, NY e em todo o país, apoiados por ferramentas virtuais seguras.",
-    zh: "我们为布朗克斯，纽约和全国的个人和企业提供全面的税务和会计服务，由安全的虚拟工具支持。",
-    ht: "Nou bay sèvis taks ak kontabilite konplè pou moun ak biznis nan Bronx, NY ak nan tout peyi a, sipòte pa zouti virtual sekirize.",
+    en: "We provide comprehensive tax and accounting services for individuals and businesses nationwide, supported by secure virtual tools.",
+    es: "Brindamos servicios integrales de impuestos y contabilidad para individuos y empresas a nivel nacional, respaldados por herramientas virtuales seguras.",
+    fr: "Nous fournissons des services fiscaux et comptables complets pour les particuliers et les entreprises à l'échelle nationale, soutenus par des outils virtuels sécurisés.",
+    pt: "Fornecemos serviços fiscais e contábeis abrangentes para indivíduos e empresas em todo o país, apoiados por ferramentas virtuais seguras.",
+    zh: "我们为全国的个人和企业提供全面的税务和会计服务，由安全的虚拟工具支持。",
+    ht: "Nou bay sèvis taks ak kontabilite konplè pou moun ak biznis nan tout peyi a, sipòte pa zouti virtual sekirize.",
   };
 
   const requestInfoButton = {

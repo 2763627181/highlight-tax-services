@@ -38,8 +38,8 @@ export function AboutSection() {
         "Secure virtual filing available",
       ],
       localSEO: {
-        title: "Local Tax Experts in Bronx, New York",
-        description: "Highlight Tax Services proudly serves individuals and businesses in Bronx, NY, New York City, and clients nationwide through secure virtual tax preparation. Whether you prefer in-person service or remote filing via our secure client portal, we provide accurate, confidential, and professional tax solutions.",
+        title: "Tax Experts Nationwide",
+        description: "Highlight Tax Services proudly serves individuals and businesses nationwide through secure virtual tax preparation. Whether you prefer in-person service or remote filing via our secure client portal, we provide accurate, confidential, and professional tax solutions.",
       },
       certified: "Certified Preparers",
       irsAuthorized: "IRS Authorized",
@@ -72,8 +72,8 @@ export function AboutSection() {
         "Presentación virtual segura disponible",
       ],
       localSEO: {
-        title: "Expertos Fiscales Locales en Bronx, Nueva York",
-        description: "Highlight Tax Services atiende con orgullo a individuos y empresas en Bronx, NY, Nueva York, y clientes a nivel nacional a través de preparación fiscal virtual segura. Ya sea que prefiera servicio en persona o presentación remota a través de nuestro portal seguro de clientes, brindamos soluciones fiscales precisas, confidenciales y profesionales.",
+        title: "Expertos Fiscales a Nivel Nacional",
+        description: "Highlight Tax Services atiende con orgullo a individuos y empresas a nivel nacional a través de preparación fiscal virtual segura. Ya sea que prefiera servicio en persona o presentación remota a través de nuestro portal seguro de clientes, brindamos soluciones fiscales precisas, confidenciales y profesionales.",
       },
       certified: "Preparadores Certificados",
       irsAuthorized: "Autorizados por el IRS",
@@ -106,8 +106,8 @@ export function AboutSection() {
         "Déclaration virtuelle sécurisée disponible",
       ],
       localSEO: {
-        title: "Experts Fiscaux Locaux à Bronx, New York",
-        description: "Highlight Tax Services sert fièrement les particuliers et les entreprises à Bronx, NY, New York City, et les clients à travers le pays grâce à une préparation fiscale virtuelle sécurisée. Que vous préfériez un service en personne ou une déclaration à distance via notre portail client sécurisé, nous fournissons des solutions fiscales précises, confidentielles et professionnelles.",
+        title: "Experts Fiscaux à l'Échelle Nationale",
+        description: "Highlight Tax Services sert fièrement les particuliers et les entreprises à l'échelle nationale grâce à une préparation fiscale virtuelle sécurisée. Que vous préfériez un service en personne ou une déclaration à distance via notre portail client sécurisé, nous fournissons des solutions fiscales précises, confidentielles et professionnelles.",
       },
       certified: "Préparateurs Certifiés",
       irsAuthorized: "Autorisés par l'IRS",
@@ -140,8 +140,8 @@ export function AboutSection() {
         "Declaração virtual segura disponível",
       ],
       localSEO: {
-        title: "Especialistas Fiscais Locais em Bronx, Nova York",
-        description: "A Highlight Tax Services orgulhosamente atende indivíduos e empresas em Bronx, NY, Nova York, e clientes em todo o país através de preparação fiscal virtual segura. Se você prefere serviço presencial ou declaração remota via nosso portal seguro de clientes, fornecemos soluções fiscais precisas, confidenciais e profissionais.",
+        title: "Especialistas Fiscais em Todo o País",
+        description: "A Highlight Tax Services orgulhosamente atende indivíduos e empresas em todo o país através de preparação fiscal virtual segura. Se você prefere serviço presencial ou declaração remota via nosso portal seguro de clientes, fornecemos soluções fiscais precisas, confidenciais e profissionais.",
       },
       certified: "Preparadores Certificados",
       irsAuthorized: "Autorizados pelo IRS",
@@ -174,8 +174,8 @@ export function AboutSection() {
         "提供安全的虚拟申报",
       ],
       localSEO: {
-        title: "布朗克斯，纽约的本地税务专家",
-        description: "Highlight Tax Services自豪地为布朗克斯，纽约、纽约市和全国客户通过安全的虚拟税务准备提供服务。无论您喜欢面对面服务还是通过我们安全的客户门户进行远程申报，我们都提供准确、保密和专业的税务解决方案。",
+        title: "全国税务专家",
+        description: "Highlight Tax Services自豪地为全国客户通过安全的虚拟税务准备提供服务。无论您喜欢面对面服务还是通过我们安全的客户门户进行远程申报，我们都提供准确、保密和专业的税务解决方案。",
       },
       certified: "认证准备者",
       irsAuthorized: "IRS授权",
@@ -208,8 +208,8 @@ export function AboutSection() {
         "Depoze virtual sekirize disponib",
       ],
       localSEO: {
-        title: "Ekspè Taks Lokal nan Bronx, Nouyòk",
-        description: "Highlight Tax Services avèk fyète sèvi moun ak biznis nan Bronx, NY, Nouyòk, ak kliyan nan tout peyi a atravè preparasyon taks virtual sekirize. Kit ou prefere sèvis an pèsòn oswa depoze aleka atravè pòtay kliyan sekirize nou an, nou bay solisyon taks egzat, konfidansyèl ak pwofesyonèl.",
+        title: "Ekspè Taks nan Tout Peyi a",
+        description: "Highlight Tax Services avèk fyète sèvi moun ak biznis nan tout peyi a atravè preparasyon taks virtual sekirize. Kit ou prefere sèvis an pèsòn oswa depoze aleka atravè pòtay kliyan sekirize nou an, nou bay solisyon taks egzat, konfidansyèl ak pwofesyonèl.",
       },
       certified: "Preparatè Sètifye",
       irsAuthorized: "Otorize pa IRS",
@@ -272,7 +272,7 @@ export function AboutSection() {
           </div>
         )}
 
-        {/* SEO Local - Bronx, NY */}
+        {/* SEO Local - Nationwide */}
         {currentContent.localSEO && (
           <Card className="bg-gradient-to-br from-primary/5 to-primary/10">
             <CardContent className="p-8 text-center">

@@ -39,7 +39,7 @@ export function ContactSection() {
 
   const content = {
     en: {
-      title: "Contact a Tax Professional in Bronx, NY",
+      title: "Contact a Tax Professional Nationwide",
       subtitle: "Have questions or ready to get started? Request a consultation or access your secure client portal to upload documents and begin your tax filing process today.",
       formTitle: "Contact Form",
       nameLabel: "Name *",
