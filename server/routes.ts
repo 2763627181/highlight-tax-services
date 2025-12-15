@@ -908,6 +908,8 @@ export async function registerRoutes(
    */
   app.get("/api/auth/me", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    // OPTIMIZADO: Agregar headers de cache para reducir requests repetidos
+    res.setHeader("Cache-Control", "private, max-age=60"); // Cache por 1 minuto
     res.json({ user: authReq.user });
   });
 

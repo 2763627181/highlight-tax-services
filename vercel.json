@@ -8,6 +8,7 @@
       "maxDuration": 60
     }
   },
+  "regions": ["iad1"],
   "rewrites": [
     {
       "source": "/api/(.*)",
