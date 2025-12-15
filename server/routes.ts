@@ -564,8 +564,12 @@ export async function registerRoutes(
     }
     
     // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
-    console.log('[Routes] Setting up OAuth authentication...');
-    await setupAuth(app);
+    // OPTIMIZADO: Hacer setupAuth no bloqueante para inicialización más rápida
+    console.log('[Routes] Setting up OAuth authentication (async)...');
+    setupAuth(app).catch((authError) => {
+      console.warn('[Routes] OAuth setup failed (non-critical):', authError);
+      // No fallar si OAuth no se puede configurar - la app puede funcionar sin OAuth
+    });
     console.log('[Routes] OAuth authentication setup complete');
   } catch (error) {
     console.error('[Routes] Error during route registration setup:', error);

@@ -34,16 +34,10 @@ async function handlerFn(req: any, res: any) {
   // Inicializar la app si no está inicializada
   if (!app || !handler) {
     try {
+      const initStart = Date.now();
       console.log('[API] ========== INITIALIZING ==========');
-      console.log('[API] Initializing Express app for Vercel...');
-      console.log('[API] Environment check:', {
-        hasDatabaseUrl: !!process.env.DATABASE_URL,
-        hasSessionSecret: !!process.env.SESSION_SECRET,
-        nodeEnv: process.env.NODE_ENV,
-        hasViteAppUrl: !!process.env.VITE_APP_URL,
-      });
       
-      // Validar variables críticas antes de continuar
+      // Validar variables críticas ANTES de cualquier operación pesada
       if (!process.env.DATABASE_URL) {
         throw new Error('DATABASE_URL is required but not set');
       }
@@ -51,10 +45,11 @@ async function handlerFn(req: any, res: any) {
         throw new Error('SESSION_SECRET is required but not set');
       }
       
-      // Crear la app Express
+      // Crear la app Express (esto es rápido)
       console.log('[API] Creating Express app...');
       app = await createApp(undefined);
-      console.log('[API] Express app created successfully');
+      const appCreatedTime = Date.now() - initStart;
+      console.log(`[API] Express app created in ${appCreatedTime}ms`);
       
       // En producción, servir archivos estáticos DESPUÉS de las rutas API
       // Esto asegura que /api/* tenga prioridad sobre archivos estáticos
@@ -83,7 +78,8 @@ async function handlerFn(req: any, res: any) {
         binary: ['image/*', 'application/pdf', 'application/octet-stream'],
       });
       
-      console.log('[API] Express app initialized successfully');
+      const totalInitTime = Date.now() - initStart;
+      console.log(`[API] Express app initialized successfully in ${totalInitTime}ms`);
     } catch (error) {
       const err = error as Error;
       console.error('[API] ========== CRITICAL ERROR ==========');

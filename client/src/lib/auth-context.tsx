@@ -257,14 +257,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const checkAuth = useCallback(async () => {
     try {
+      // OPTIMIZADO: Timeout más corto (5 segundos) para evitar esperas largas
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       const response = await fetch("/api/auth/me", {
         credentials: "include",
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
+      
       if (response.ok) {
         const result = await safeJsonParse(response);
         if (result.data && result.data.user) {
           setUser(result.data.user);
-          fetchWsToken();
+          // Fetch WS token en background (no bloquea)
+          fetchWsToken().catch(() => {}); // Ignorar errores de WS
+        } else if (result.user) {
+          // Compatibilidad con formato anterior
+          setUser(result.user);
+          fetchWsToken().catch(() => {});
         } else {
           setUser(null);
           setWsToken(null);
@@ -274,6 +287,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setWsToken(null);
       }
     } catch (error) {
+      // Si es timeout, no mostrar error al usuario
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('[Auth] Auth check timeout (non-critical)');
+      }
       setUser(null);
       setWsToken(null);
     } finally {
