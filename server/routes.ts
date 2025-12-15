@@ -547,7 +547,16 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server | undefined> {
   try {
+    const routesStart = Date.now();
     console.log('[Routes] Starting route registration...');
+    
+    // OPTIMIZADO: Health check rápido ANTES de cualquier inicialización pesada
+    app.get("/health", (_req: Request, res: Response) => {
+      res.status(200).json({ status: "ok", timestamp: Date.now() });
+    });
+    app.get("/api/health", (_req: Request, res: Response) => {
+      res.status(200).json({ status: "ok", timestamp: Date.now() });
+    });
     
     // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
     if (httpServer && wsService) {
