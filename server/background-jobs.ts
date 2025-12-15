@@ -100,11 +100,17 @@ export async function sendDocumentNotificationInBackground(
  * Envía notificación de actualización de caso en background
  */
 export async function sendCaseStatusUpdateInBackground(
-  data: { clientName: string; clientEmail: string; caseId: number; status: string }
+  data: { clientName: string; clientEmail: string; caseId: number; status: string; filingYear?: number }
 ): Promise<void> {
   runBackgroundTask(
     async () => {
-      await sendCaseStatusUpdate(data);
+      await sendCaseStatusUpdate({
+        clientName: data.clientName,
+        clientEmail: data.clientEmail,
+        caseId: data.caseId,
+        filingYear: data.filingYear || new Date().getFullYear(),
+        newStatus: data.status,
+      });
     },
     `sendCaseStatusUpdate(${data.caseId})`
   );

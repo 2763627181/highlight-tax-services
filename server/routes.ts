@@ -1936,6 +1936,13 @@ export async function registerRoutes(
         return;
       }
 
+      // Registrar actividad en background
+      logActivityInBackground(
+        authReq.user!.id,
+        "case_updated",
+        `Caso ${caseId} actualizado: status=${status || existingCase.status}`
+      );
+
       // Notificar al cliente si cambió el estado (en background)
       if (status && status !== existingCase.status) {
         const client = await storage.getUser(existingCase.clientId);
@@ -1944,10 +1951,9 @@ export async function registerRoutes(
             clientName: client.name,
             clientEmail: client.email,
             caseId: caseId,
+            status: status,
             filingYear: existingCase.filingYear,
-            newStatus: status,
-            notes: notes || undefined,
-          }).catch(console.error);
+          });
 
           // Notificación en tiempo real (solo si wsService está disponible)
           if (wsService) {
@@ -2166,12 +2172,11 @@ export async function registerRoutes(
 
       await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
-      // Send password reset email
-      await sendPasswordResetEmail({
+      // Enviar email en background
+      sendPasswordResetEmailInBackground({
         name: user.name || "Usuario",
         email: user.email,
-        resetToken: token,
-        expiresInMinutes: 30,
+        resetUrl: `${process.env.VITE_APP_URL || 'https://highlighttax.com'}/reset-password?token=${token}`,
       });
 
       res.json({ message: "Email de restablecimiento enviado" });
