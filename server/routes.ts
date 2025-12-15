@@ -885,13 +885,6 @@ export async function registerRoutes(
         return;
       }
 
-      // Registrar actividad
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "user_login",
-        details: `Usuario inició sesión: ${email}`,
-      });
-
       // Generar token JWT
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
@@ -902,8 +895,18 @@ export async function registerRoutes(
       // Establecer cookie segura
       res.cookie("token", token, COOKIE_OPTIONS);
 
+      // OPTIMIZADO: Registrar actividad en background para no bloquear respuesta
+      logActivityInBackground(
+        user.id,
+        "user_login",
+        `Usuario inició sesión: ${email}`
+      );
+
+      // Responder inmediatamente
       res.json({
-        user: { id: user.id, email: user.email, role: user.role, name: user.name },
+        data: {
+          user: { id: user.id, email: user.email, role: user.role, name: user.name },
+        },
       });
     } catch (error) {
       console.error("Error de login:", error);
@@ -923,7 +926,11 @@ export async function registerRoutes(
     const authReq = req as AuthRequest;
     // OPTIMIZADO: Agregar headers de cache para reducir requests repetidos
     res.setHeader("Cache-Control", "private, max-age=60"); // Cache por 1 minuto
-    res.json({ user: authReq.user });
+    // Mantener compatibilidad con ambos formatos
+    res.json({ 
+      data: { user: authReq.user },
+      user: authReq.user, // Compatibilidad con formato anterior
+    });
   });
 
   /**
