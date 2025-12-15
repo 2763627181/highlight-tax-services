@@ -197,7 +197,12 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   lastLoginAt: timestamp("last_login_at"),
-});
+}, (table) => [
+  index("IDX_users_email").on(table.email),
+  index("IDX_users_role").on(table.role),
+  index("IDX_users_is_active").on(table.isActive),
+  index("IDX_users_created_at").on(table.createdAt),
+]);
 
 // =============================================================================
 // TABLA DE TOKENS DE RECUPERACIÓN DE CONTRASEÑA
@@ -223,7 +228,11 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_password_reset_user_id").on(table.userId),
+  index("IDX_password_reset_token_hash").on(table.tokenHash),
+  index("IDX_password_reset_expires_at").on(table.expiresAt),
+]);
 
 // =============================================================================
 // TABLA DE IDENTIDADES OAUTH
@@ -257,7 +266,10 @@ export const authIdentities = pgTable("auth_identities", {
   lastName: varchar("last_name", { length: 100 }),
   avatarUrl: varchar("avatar_url", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_auth_identities_user_id").on(table.userId),
+  index("IDX_auth_identities_provider").on(table.provider, table.providerUserId),
+]);
 
 // =============================================================================
 // TABLA DE CASOS TRIBUTARIOS
@@ -293,7 +305,12 @@ export const taxCases = pgTable("tax_cases", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_tax_cases_client_id").on(table.clientId),
+  index("IDX_tax_cases_status").on(table.status),
+  index("IDX_tax_cases_filing_year").on(table.filingYear),
+  index("IDX_tax_cases_client_year").on(table.clientId, table.filingYear),
+]);
 
 // =============================================================================
 // TABLA DE DOCUMENTOS
@@ -335,7 +352,12 @@ export const documents = pgTable("documents", {
   uploadedById: integer("uploaded_by_id").notNull().references(() => users.id),
   isFromPreparer: boolean("is_from_preparer").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_documents_client_id").on(table.clientId),
+  index("IDX_documents_case_id").on(table.caseId),
+  index("IDX_documents_category").on(table.category),
+  index("IDX_documents_created_at").on(table.createdAt),
+]);
 
 // =============================================================================
 // TABLA DE CITAS
@@ -362,7 +384,12 @@ export const appointments = pgTable("appointments", {
   status: appointmentStatusEnum("status").notNull().default("scheduled"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_appointments_client_id").on(table.clientId),
+  index("IDX_appointments_date").on(table.appointmentDate),
+  index("IDX_appointments_status").on(table.status),
+  index("IDX_appointments_client_date").on(table.clientId, table.appointmentDate),
+]);
 
 // =============================================================================
 // TABLA DE MENSAJES
@@ -393,7 +420,14 @@ export const messages = pgTable("messages", {
   message: text("message").notNull(),
   isRead: boolean("is_read").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_messages_sender_id").on(table.senderId),
+  index("IDX_messages_recipient_id").on(table.recipientId),
+  index("IDX_messages_case_id").on(table.caseId),
+  index("IDX_messages_is_read").on(table.isRead),
+  index("IDX_messages_created_at").on(table.createdAt),
+  index("IDX_messages_recipient_read").on(table.recipientId, table.isRead),
+]);
 
 // =============================================================================
 // TABLA DE FORMULARIO DE CONTACTO
@@ -446,7 +480,11 @@ export const activityLogs = pgTable("activity_logs", {
   action: text("action").notNull(),
   details: text("details"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_activity_logs_user_id").on(table.userId),
+  index("IDX_activity_logs_action").on(table.action),
+  index("IDX_activity_logs_created_at").on(table.createdAt),
+]);
 
 // =============================================================================
 // RELACIONES ENTRE TABLAS

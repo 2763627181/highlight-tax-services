@@ -47,6 +47,15 @@ import {
   sendAppointmentConfirmation,
   sendPasswordResetEmail
 } from "./email";
+import {
+  logActivityInBackground,
+  sendWelcomeEmailInBackground,
+  sendContactNotificationInBackground,
+  sendDocumentNotificationInBackground,
+  sendCaseStatusUpdateInBackground,
+  sendAppointmentConfirmationInBackground,
+  sendPasswordResetEmailInBackground,
+} from "./background-jobs";
 import crypto from "crypto";
 import { wsService } from "./websocket";
 
@@ -788,17 +797,14 @@ export async function registerRoutes(
         user: { id: user.id, email: user.email, role: user.role, name: user.name },
       });
 
-      // Operaciones asíncronas después de responder (no bloquean)
-      Promise.all([
-        // Registrar actividad (puede fallar sin afectar al usuario)
-        storage.createActivityLog({
-          userId: user.id,
-          action: "user_registered",
-          details: `Nuevo usuario registrado: ${email}`,
-        }).catch(err => console.error("[Register] Error logging activity:", err)),
-        // Enviar email de bienvenida (puede fallar sin afectar al usuario)
-        sendWelcomeEmail({ name: user.name, email: user.email }).catch(err => console.error("[Register] Error sending welcome email:", err))
-      ]).catch(err => console.error("[Register] Error in background tasks:", err));
+      // Operaciones en background (no bloquean la respuesta)
+      // Estas tareas se ejecutan de forma asíncrona y no afectan al usuario si fallan
+      logActivityInBackground(
+        user.id,
+        "user_registered",
+        `Nuevo usuario registrado: ${email}`
+      );
+      sendWelcomeEmailInBackground(user.name, user.email);
     } catch (error) {
       console.error("Error de registro:", error);
       
@@ -957,22 +963,20 @@ export async function registerRoutes(
           role: "client",
         });
 
-        // Registrar actividad
-        await storage.createActivityLog({
-          userId: user.id,
-          action: "user_registered_oauth",
-          details: `Nuevo usuario OAuth registrado via ${provider}: ${normalizedEmail}`,
-        });
-
-        // Enviar email de bienvenida
-        sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
+        // Registrar actividad y enviar email en background
+        logActivityInBackground(
+          user.id,
+          "user_registered_oauth",
+          `Nuevo usuario OAuth registrado via ${provider}: ${normalizedEmail}`
+        );
+        sendWelcomeEmailInBackground(user.name, user.email);
       } else {
-        // Registrar login OAuth
-        await storage.createActivityLog({
-          userId: user.id,
-          action: "user_login_oauth",
-          details: `Usuario inició sesión via ${provider}: ${normalizedEmail}`,
-        });
+        // Registrar login OAuth en background
+        logActivityInBackground(
+          user.id,
+          "user_login_oauth",
+          `Usuario inició sesión via ${provider}: ${normalizedEmail}`
+        );
       }
 
       // Generar token JWT
@@ -1065,19 +1069,18 @@ export async function registerRoutes(
       
       await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
-      // Enviar email
-      sendPasswordResetEmail({
+      // Registrar actividad en background
+      logActivityInBackground(
+        user.id,
+        "password_reset_requested",
+        `Password reset requested for ${normalizedEmail}`
+      );
+
+      // Enviar email en background
+      sendPasswordResetEmailInBackground({
         name: user.name,
         email: user.email,
-        resetToken: resetToken, // Enviar token sin hash
-        expiresInMinutes: 30,
-      }).catch(console.error);
-
-      // Registrar actividad
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "password_reset_requested",
-        details: `Password reset requested for ${normalizedEmail}`,
+        resetUrl: `${process.env.VITE_APP_URL || 'https://highlighttax.com'}/reset-password?token=${resetToken}`,
       });
 
       res.json(genericResponse);
@@ -1138,12 +1141,12 @@ export async function registerRoutes(
       // Marcar token como usado
       await storage.markPasswordResetTokenAsUsed(resetToken.id);
 
-      // Registrar actividad
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "password_reset_completed",
-        details: `Password reset completed for ${user.email}`,
-      });
+      // Registrar actividad en background
+      logActivityInBackground(
+        user.id,
+        "password_reset_completed",
+        `Password reset completed for ${user.email}`
+      );
 
       res.json({ message: "Password reset successfully" });
     } catch (error) {
@@ -1212,13 +1215,13 @@ export async function registerRoutes(
       const contact = await storage.createContactSubmission(result.data);
       
       // Notificar al administrador
-      sendContactFormNotification({
+      // Enviar notificación en background
+      sendContactNotificationInBackground({
         name: contact.name,
         email: contact.email,
         phone: contact.phone || undefined,
         message: contact.message,
-        service: contact.service || undefined,
-      }).catch(console.error);
+      });
 
       res.json({ success: true, contact });
     } catch (error) {
@@ -1343,14 +1346,13 @@ export async function registerRoutes(
         });
 
         // Registrar actividad
-        await storage.createActivityLog({
-          userId: authReq.user!.id,
-          action: "document_uploaded",
-          details: `Documento subido: ${req.file.originalname} (${docCategory})`,
-        });
-
-        // Notificar al administrador
-        sendDocumentUploadNotification({
+        // Registrar actividad y notificar en background
+        logActivityInBackground(
+          authReq.user!.id,
+          "document_uploaded",
+          `Documento subido: ${req.file.originalname} (${docCategory})`
+        );
+        sendDocumentNotificationInBackground({
           clientName: authReq.user!.name,
           clientEmail: authReq.user!.email,
           fileName: req.file.originalname,
@@ -1659,11 +1661,12 @@ export async function registerRoutes(
       });
 
       // Registrar actividad
-      await storage.createActivityLog({
-        userId: authReq.user!.id,
-        action: "message_sent",
-        details: `Mensaje enviado a ${recipient.name}`,
-      });
+      // Registrar actividad en background
+      logActivityInBackground(
+        authReq.user!.id,
+        "message_sent",
+        `Mensaje enviado a ${recipient.name}`
+      );
 
       // Notificación en tiempo real (solo si wsService está disponible)
       if (wsService) {
@@ -1867,13 +1870,14 @@ export async function registerRoutes(
         status: "pending",
       });
 
-      await storage.createActivityLog({
-        userId: authReq.user!.id,
-        action: "case_created",
-        details: `Caso creado para cliente ${clientId}, año ${filingYear}`,
-      });
-
       res.json(taxCase);
+
+      // Registrar actividad en background (después de responder)
+      logActivityInBackground(
+        authReq.user!.id,
+        "case_created",
+        `Caso creado para cliente ${clientId}, año ${filingYear}`
+      );
     } catch (error) {
       console.error("Error creando caso:", error);
       res.status(500).json({ message: "Error al crear caso" });
@@ -1932,17 +1936,11 @@ export async function registerRoutes(
         return;
       }
 
-      await storage.createActivityLog({
-        userId: authReq.user!.id,
-        action: "case_updated",
-        details: `Caso ${caseId} actualizado: status=${status}`,
-      });
-
-      // Notificar al cliente si cambió el estado
+      // Notificar al cliente si cambió el estado (en background)
       if (status && status !== existingCase.status) {
         const client = await storage.getUser(existingCase.clientId);
         if (client) {
-          sendCaseStatusUpdate({
+          sendCaseStatusUpdateInBackground({
             clientName: client.name,
             clientEmail: client.email,
             caseId: caseId,
