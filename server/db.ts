@@ -18,10 +18,18 @@ function getPoolConfig(): pg.PoolConfig | null {
 
   const poolConfig: pg.PoolConfig = {
     connectionString: databaseUrl,
-    // Optimizaciones para serverless (Vercel)
-    max: 1, // Máximo 1 conexión en serverless (no necesitamos pool grande)
-    idleTimeoutMillis: 30000, // Cerrar conexiones inactivas después de 30s
-    connectionTimeoutMillis: 10000, // Timeout de conexión de 10s
+    // Optimizaciones para serverless (Vercel) y rendimiento
+    max: process.env.NODE_ENV === 'production' ? 5 : 2, // Más conexiones en producción para mejor throughput
+    min: 0, // No mantener conexiones mínimas en serverless
+    idleTimeoutMillis: 20000, // Cerrar conexiones inactivas más rápido (20s)
+    connectionTimeoutMillis: 5000, // Timeout más corto para fallar rápido (5s)
+    // Statement timeout para evitar queries colgadas
+    statement_timeout: 30000, // 30 segundos máximo por query
+    // Query timeout
+    query_timeout: 30000,
+    // Keep-alive para mantener conexiones vivas
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
   };
 
   // Enable SSL for production/external databases (Supabase, Neon, etc.)

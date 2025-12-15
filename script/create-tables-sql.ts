@@ -181,3 +181,4 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 console.log(SQL_SCRIPT);
 
 
+

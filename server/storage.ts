@@ -67,6 +67,7 @@ import {
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, count, sum } from "drizzle-orm";
+import { cache, CacheKeys } from "./cache";
 
 // =============================================================================
 // INTERFAZ DE ALMACENAMIENTO
@@ -448,10 +449,26 @@ export class DatabaseStorage implements IStorage {
    * 
    * @param id - ID único del usuario
    * @returns Usuario encontrado o undefined
+   * @cached Por 2 minutos para mejorar rendimiento
    */
   async getUser(id: number): Promise<User | undefined> {
+    // Intentar obtener del cache primero
+    const cacheKey = CacheKeys.user(id);
+    const cached = cache.get<User>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Si no está en cache, consultar DB
     const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
+    const result = user || undefined;
+    
+    // Cachear resultado si existe (2 minutos)
+    if (result) {
+      cache.set(cacheKey, result, 2 * 60 * 1000);
+    }
+    
+    return result;
   }
 
   /**
@@ -463,8 +480,25 @@ export class DatabaseStorage implements IStorage {
    * @returns Usuario encontrado o undefined
    */
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
-    return user || undefined;
+    const normalizedEmail = email.toLowerCase().trim();
+    const cacheKey = CacheKeys.userByEmail(normalizedEmail);
+    
+    // Intentar obtener del cache primero
+    const cached = cache.get<User>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Si no está en cache, consultar DB
+    const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+    const result = user || undefined;
+    
+    // Cachear resultado si existe (2 minutos)
+    if (result) {
+      cache.set(cacheKey, result, 2 * 60 * 1000);
+    }
+    
+    return result;
   }
 
   /**
@@ -478,6 +512,17 @@ export class DatabaseStorage implements IStorage {
       .insert(users)
       .values(insertUser as any)
       .returning();
+    
+    // Cachear el nuevo usuario
+    if (user) {
+      cache.set(CacheKeys.user(user.id), user, 2 * 60 * 1000);
+      if (user.email) {
+        cache.set(CacheKeys.userByEmail(user.email.toLowerCase()), user, 2 * 60 * 1000);
+      }
+      // Invalidar lista de clientes
+      cache.invalidatePattern('users:clients');
+    }
+    
     return user;
   }
 
@@ -489,6 +534,7 @@ export class DatabaseStorage implements IStorage {
    * @param id - ID del usuario
    * @param data - Campos a actualizar
    * @returns Usuario actualizado o undefined si no existe
+   * @cached Invalida cache del usuario actualizado
    */
   async updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined> {
     const [user] = await db
@@ -496,6 +542,16 @@ export class DatabaseStorage implements IStorage {
       .set({ ...data, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
+    
+    // Invalidar cache del usuario actualizado
+    if (user) {
+      cache.invalidate(CacheKeys.user(id));
+      if (user.email) {
+        cache.invalidate(CacheKeys.userByEmail(user.email.toLowerCase()));
+      }
+      cache.invalidatePattern('users:clients');
+    }
+    
     return user || undefined;
   }
 
@@ -503,9 +559,18 @@ export class DatabaseStorage implements IStorage {
    * Obtiene todos los clientes (rol = 'client')
    * 
    * @returns Lista de clientes ordenados por fecha de creación descendente
+   * @cached Por 1 minuto para mejorar rendimiento del admin
    */
   async getAllClients(): Promise<User[]> {
-    return db.select().from(users).where(eq(users.role, "client")).orderBy(desc(users.createdAt));
+    const cacheKey = CacheKeys.userClients();
+    const cached = cache.get<User[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const clients = await db.select().from(users).where(eq(users.role, "client")).orderBy(desc(users.createdAt));
+    cache.set(cacheKey, clients, 60 * 1000); // Cache por 1 minuto
+    return clients;
   }
 
   /**

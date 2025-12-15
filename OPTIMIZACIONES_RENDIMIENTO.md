@@ -159,3 +159,4 @@ Para ver si necesitas pagar, revisa:
 
 **💡 Mi recomendación**: Prueba primero con las optimizaciones gratis. Si después de 1-2 semanas los usuarios se quejan o ves que tarda mucho, entonces considera pagar.
 
+

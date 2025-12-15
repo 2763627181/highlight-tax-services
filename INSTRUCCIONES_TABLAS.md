@@ -222,3 +222,4 @@ Después de crear las tablas, verifica que:
 - Siempre usa el schema `public` para tus tablas de aplicación
 
 
+

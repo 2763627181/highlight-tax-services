@@ -11,11 +11,52 @@ async function verificarRegion() {
 
   // Extraer región de Supabase desde DATABASE_URL
   let supabaseRegion = 'Desconocida';
+  let regionSource = '';
+  
   if (databaseUrl) {
+    // Intentar extraer desde DATABASE_URL (formato pooler)
     const regionMatch = databaseUrl.match(/aws-0-([^.]+)\.pooler\.supabase\.com/);
     if (regionMatch) {
       supabaseRegion = regionMatch[1];
+      regionSource = 'DATABASE_URL (pooler)';
+    } else {
+      // Intentar formato directo
+      const directMatch = databaseUrl.match(/aws-0-([^.]+)\.supabase\.com/);
+      if (directMatch) {
+        supabaseRegion = directMatch[1];
+        regionSource = 'DATABASE_URL (directo)';
+      }
     }
+  }
+  
+  // Si no se encontró en DATABASE_URL, intentar desde Supabase URL
+  if (supabaseRegion === 'Desconocida' && supabaseUrl) {
+    // Hacer una petición a la API de Supabase para obtener información del proyecto
+    try {
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+        headers: {
+          'apikey': process.env.VITE_SUPABASE_ANON_KEY || '',
+        }
+      });
+      // La región generalmente está en el header o podemos inferirla
+      // Por ahora, verificamos si la URL contiene información
+    } catch (error) {
+      // Ignorar errores de fetch
+    }
+  }
+  
+  // Si no se detectó, pedir verificación manual
+  if (supabaseRegion === 'Desconocida') {
+    console.log('⚠️  No se pudo detectar la región automáticamente desde DATABASE_URL.\n');
+    console.log('📋 Verificación manual necesaria:\n');
+    console.log('   1. Ve a Supabase Dashboard:');
+    console.log('      https://supabase.com/dashboard/project/pfqzfretadqjzjbimvkv/settings/infrastructure\n');
+    console.log('   2. Verifica la región del proyecto en "Primary Database" > "Region"\n');
+    console.log('   3. Compara con la región de Vercel (us-east-1 es la recomendada)\n');
+    console.log('   4. Si la región es diferente a us-east-1, considera migrar para mejor rendimiento\n');
+    
+    // No asumir región, dejar que el usuario verifique
+    return;
   }
 
   // Mapeo de regiones de Supabase a nombres legibles
@@ -38,6 +79,9 @@ async function verificarRegion() {
   console.log('📊 Información de Regiones:\n');
   console.log(`   Supabase URL: ${supabaseUrl}`);
   console.log(`   Supabase Región: ${regionName} (${supabaseRegion})`);
+  if (regionSource) {
+    console.log(`   Fuente: ${regionSource}`);
+  }
   console.log(`   Vercel Región Recomendada: US East (N. Virginia) - us-east-1\n`);
 
   // Verificar si coinciden
@@ -59,15 +103,23 @@ async function verificarRegion() {
   console.log('   - Tener Supabase en la misma región reduce latencia significativamente');
   console.log('   - La latencia entre regiones puede ser 50-200ms adicionales\n');
 
-  // Verificar si DATABASE_URL está configurada
+  // Verificar si DATABASE_URL está configurada (solo advertencia, no error fatal)
   if (!databaseUrl) {
-    console.log('❌ ERROR: DATABASE_URL no está configurada');
-    console.log('   Configura DATABASE_URL en tus variables de entorno.\n');
-    process.exit(1);
+    console.log('⚠️  ADVERTENCIA: DATABASE_URL no está configurada localmente.');
+    console.log('   Esto es normal si solo estás verificando la configuración.');
+    console.log('   En Vercel, DATABASE_URL debe estar configurada en Environment Variables.\n');
+  } else {
+    console.log('✅ DATABASE_URL está configurada localmente.\n');
   }
 
+  console.log('📝 Próximos pasos:\n');
+  console.log('   1. Verifica en Supabase Dashboard que la región sea us-east-1');
+  console.log('   2. Verifica en Vercel que DATABASE_URL contenga aws-0-us-east-1');
+  console.log('   3. Si las regiones coinciden, ¡todo está optimizado! 🎉\n');
+  
   console.log('✅ Verificación completada.\n');
 }
 
 verificarRegion().catch(console.error);
+
 

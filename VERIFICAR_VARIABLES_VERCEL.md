@@ -112,3 +112,4 @@ Si ves `false` en alguna, esa variable falta.
 2. Busca mensajes que empiecen con `[API]`
 3. Comparte el error específico para debugging
 
+

@@ -73,3 +73,4 @@ Si el problema persiste, comparte:
 3. Si es por variables faltantes, agrégalas y haz redeploy
 4. Si es otro error, comparte los logs para debugging
 
+

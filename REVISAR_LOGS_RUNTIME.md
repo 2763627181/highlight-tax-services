@@ -97,3 +97,4 @@ Ejemplo de lo que necesito:
 
 Los logs de runtime se actualizan en tiempo real. Si haces una petición ahora (intenta acceder a `/admin`), deberías ver el error aparecer en los logs inmediatamente.
 
+
