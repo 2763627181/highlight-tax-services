@@ -650,12 +650,12 @@ export async function registerRoutes(
         role: userRole as "client" | "preparer" | "admin",
       });
 
-      // Registrar actividad
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "user_created",
-        details: `Usuario creado: ${email} con rol ${userRole}`,
-      });
+      // OPTIMIZADO: Registrar actividad en background
+      logActivityInBackground(
+        user.id,
+        "user_created",
+        `Usuario creado: ${email} con rol ${userRole}`
+      );
 
       res.json({
         success: true,
@@ -1526,12 +1526,12 @@ export async function registerRoutes(
         status: "scheduled",
       });
 
-      // Registrar actividad
-      await storage.createActivityLog({
-        userId: authReq.user!.id,
-        action: "appointment_scheduled",
-        details: `Cita agendada para ${appointmentDate}`,
-      });
+      // OPTIMIZADO: Registrar actividad en background
+      logActivityInBackground(
+        authReq.user!.id,
+        "appointment_scheduled",
+        `Cita agendada para ${appointmentDate}`
+      );
 
       // Enviar confirmación por email
       sendAppointmentConfirmation({
