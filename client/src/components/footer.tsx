@@ -13,7 +13,7 @@ export function Footer() {
 
   const content = {
     en: {
-      description: "Professional tax preparation services for individuals and businesses throughout the United States. Secure virtual filing available.",
+      description: "Professional tax preparation services for individuals and businesses throughout the United States.",
       quickLinks: "Quick Links",
       legal: "Legal",
       contact: "Contact",

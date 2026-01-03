@@ -3,7 +3,7 @@
  * Panel de administración con soporte multi-idioma
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
@@ -683,6 +683,19 @@ export default function Admin() {
   const { user, logout, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const { language } = useI18n();
+
+  // Proteger ruta: solo admins y preparadores pueden acceder
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        // No autenticado - redirigir al portal
+        setLocation("/portal");
+      } else if (user.role !== "admin" && user.role !== "preparer") {
+        // Usuario es cliente - redirigir al dashboard
+        setLocation("/dashboard");
+      }
+    }
+  }, [user, authLoading, setLocation]);
   const [selectedCase, setSelectedCase] = useState<CaseWithClient | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreateCaseOpen, setIsCreateCaseOpen] = useState(false);
@@ -872,9 +885,13 @@ export default function Admin() {
     );
   }
 
+  // Si no hay usuario o no tiene permisos, mostrar loading mientras se redirige
   if (!user || (user.role !== "admin" && user.role !== "preparer")) {
-    setLocation("/portal");
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const getInitials = (name: string) => {

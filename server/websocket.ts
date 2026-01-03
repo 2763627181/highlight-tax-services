@@ -326,10 +326,11 @@ class WebSocketService {
 
     // Manejar mensajes entrantes con validación de tamaño
     ws.on("message", (data) => {
+      // Convertir RawData a Buffer si es necesario
+      const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as string | ArrayBuffer);
+      
       // Verificación adicional de tamaño de mensaje (defensa en profundidad)
-      // Convertir RawData a Buffer para obtener el tamaño
-      const dataBuffer = Buffer.isBuffer(data) ? data : Buffer.from(data as any);
-      const messageSize = dataBuffer.byteLength;
+      const messageSize = buffer.byteLength;
       if (messageSize > MAX_MESSAGE_SIZE) {
         log(`WebSocket security: user ${ws.userId} sent message ${messageSize} bytes (limit: ${MAX_MESSAGE_SIZE}), closing`, "websocket");
         ws.close(4003, "Message too large");
@@ -337,7 +338,7 @@ class WebSocketService {
       }
       
       // Log del mensaje (truncado para auditoría)
-      const messagePreview = data.toString().substring(0, 100);
+      const messagePreview = buffer.toString().substring(0, 100);
       log(`WebSocket message from user ${ws.userId} (${messageSize}b): ${messagePreview}...`, "websocket");
     });
   }

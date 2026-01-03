@@ -7,9 +7,20 @@ import { Loader2 } from "lucide-react";
 
 export default function AuthCallback() {
   const [, setLocation] = useLocation();
-  const { loginWithOAuth } = useAuth();
+  const { loginWithOAuth, user } = useAuth();
   const { toast } = useToast();
   const [error, setError] = useState<string | null>(null);
+
+  // Redirigir según el rol del usuario después de OAuth
+  useEffect(() => {
+    if (user) {
+      if (user.role === "admin" || user.role === "preparer") {
+        setLocation("/admin");
+      } else {
+        setLocation("/dashboard");
+      }
+    }
+  }, [user, setLocation]);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -33,7 +44,7 @@ export default function AuthCallback() {
             description: "You have successfully logged in.",
           });
 
-          setLocation("/dashboard");
+          // NO redirigir aquí - el useEffect de arriba se encargará según el rol
         } else {
           throw new Error("No session found");
         }
@@ -53,7 +64,7 @@ export default function AuthCallback() {
     };
 
     handleCallback();
-  }, []);
+  }, [loginWithOAuth, setLocation, toast]);
 
   if (error) {
     return (
@@ -61,6 +72,19 @@ export default function AuthCallback() {
         <div className="text-center">
           <p className="text-destructive mb-2">{error}</p>
           <p className="text-muted-foreground">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si el usuario se autenticó exitosamente, mostrar loading mientras se redirige
+  // (el useEffect de arriba manejará la redirección)
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Redirecting...</p>
         </div>
       </div>
     );

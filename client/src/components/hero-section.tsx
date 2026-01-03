@@ -21,15 +21,15 @@ export function HeroSection() {
   const stats = {
     en: [
       { value: "18+", label: "Years of Experience" },
-      { value: "5000+", label: "Clients Served Nationwide" },
-      { value: "98%", label: "Client Satisfaction" },
-      { value: "24/7", label: "Secure Client Portal Access" },
+      { value: "5000+", label: "Satisfied Clients" },
+      { value: "98%", label: "Success Rate" },
+      { value: "24h", label: "Fast Response" },
     ],
     es: [
       { value: "18+", label: "Años de Experiencia" },
-      { value: "5000+", label: "Clientes Atendidos" },
-      { value: "98%", label: "Satisfacción del Cliente" },
-      { value: "24/7", label: "Acceso al Portal Seguro" },
+      { value: "5000+", label: "Clientes Satisfechos" },
+      { value: "98%", label: "Tasa de Éxito" },
+      { value: "24h", label: "Respuesta Rápida" },
     ],
     fr: [
       { value: "18+", label: "Années d'Expérience" },
@@ -67,30 +67,30 @@ export function HeroSection() {
   };
 
   const heroHeadline = {
-    en: { part1: "Tax Preparation Services Nationwide", highlight: "for Individuals and Businesses", part2: "" },
-    es: { part1: "Servicios de Preparación de Impuestos a Nivel Nacional", highlight: "para Individuos y Empresas", part2: "" },
-    fr: { part1: "Services de Préparation Fiscale à l'Échelle Nationale", highlight: "pour Particuliers et Entreprises", part2: "" },
-    pt: { part1: "Serviços de Preparação de Impostos em Todo o País", highlight: "para Indivíduos e Empresas", part2: "" },
-    zh: { part1: "全国税务准备服务", highlight: "面向个人和企业", part2: "" },
-    ht: { part1: "Sèvis Preparasyon Taks nan Tout Peyi a", highlight: "pou Moun ak Biznis", part2: "" },
+    en: { part1: "Maximize your refund", highlight: "with tax experts", part2: "" },
+    es: { part1: "Maximiza tu reembolso", highlight: "con expertos", part2: "en impuestos" },
+    fr: { part1: "Maximisez votre remboursement", highlight: "avec des experts", part2: "fiscaux" },
+    pt: { part1: "Maximize sua restituição", highlight: "com especialistas", part2: "em impostos" },
+    zh: { part1: "最大化您的退税", highlight: "与税务专家", part2: "一起" },
+    ht: { part1: "Maksimize ranbousman ou", highlight: "ak ekspè", part2: "nan taks" },
   };
 
   const heroDescription = {
-    en: "IRS-authorized tax professionals with over 18 years of experience, delivering secure, accurate, and personalized tax solutions in English and Spanish — supported by a private client portal for document upload and IRS record access.",
-    es: "Profesionales de impuestos autorizados por el IRS con más de 18 años de experiencia, ofreciendo soluciones fiscales seguras, precisas y personalizadas en inglés y español — respaldadas por un portal privado de clientes para carga de documentos y acceso a registros del IRS.",
-    fr: "Professionnels fiscaux autorisés par l'IRS avec plus de 18 ans d'expérience, offrant des solutions fiscales sécurisées, précises et personnalisées en anglais et espagnol — soutenues par un portail client privé pour le téléchargement de documents et l'accès aux dossiers IRS.",
-    pt: "Profissionais fiscais autorizados pelo IRS com mais de 18 anos de experiência, oferecendo soluções fiscais seguras, precisas e personalizadas em inglês e espanhol — apoiadas por um portal privado de clientes para upload de documentos e acesso a registros do IRS.",
-    zh: "IRS授权的税务专业人士，拥有超过18年的经验，提供安全、准确和个性化的税务解决方案（英语和西班牙语）— 支持私人客户门户，用于文档上传和IRS记录访问。",
-    ht: "Pwofesyonèl taks otorize pa IRS ak plis pase 18 ane eksperyans, ofri solisyon taks sekirize, egzat ak pèsonalize an Angle ak Panyòl — sipòte pa yon pòtay kliyan prive pou telechaje dokiman ak aksè dosye IRS.",
+    en: "Certified preparers with over 18 years of experience. Personalized service in English and Spanish for employees, business owners, and self-employed individuals.",
+    es: "Preparadores certificados con más de 18 años de experiencia. Servicio personalizado en inglés y español para empleados, dueños de negocios y trabajadores independientes.",
+    fr: "Préparateurs certifiés avec plus de 18 ans d'expérience. Service personnalisé en anglais et espagnol pour employés, propriétaires d'entreprise et travailleurs indépendants.",
+    pt: "Preparadores certificados com mais de 18 anos de experiência. Serviço personalizado em inglês e espanhol para funcionários, donos de negócios e autônomos.",
+    zh: "拥有超过18年经验的认证准备者。为员工、企业主和自雇人士提供英语和西班牙语的个性化服务。",
+    ht: "Preparatè sètifye ak plis pase 18 ane eksperyans. Sèvis pèsonalize an Angle ak Panyòl pou anplwaye, pwopriyetè biznis ak travayè endepandan.",
   };
 
   const scheduleButton = {
-    en: "Request a Private Tax Consultation",
-    es: "Solicitar Consulta Fiscal Privada",
-    fr: "Demander une Consultation Fiscale Privée",
-    pt: "Solicitar Consulta Fiscal Privada",
-    zh: "请求私人税务咨询",
-    ht: "Mande Konsiltasyon Taks Prive",
+    en: "Schedule Appointment",
+    es: "Agendar Cita",
+    fr: "Prendre Rendez-vous",
+    pt: "Agendar Consulta",
+    zh: "预约咨询",
+    ht: "Pran Randevou",
   };
 
   const portalButton = {
@@ -100,15 +100,6 @@ export function HeroSection() {
     pt: "Portal do Cliente",
     zh: "客户门户",
     ht: "Pòtay Kliyan",
-  };
-
-  const portalMicrocopy = {
-    en: "Secure portal for document upload, tax history, and IRS records — available 24/7.",
-    es: "Portal seguro para carga de documentos, historial fiscal y registros del IRS — disponible 24/7.",
-    fr: "Portail sécurisé pour le téléchargement de documents, l'historique fiscal et les dossiers IRS — disponible 24/7.",
-    pt: "Portal seguro para upload de documentos, histórico fiscal e registros do IRS — disponível 24/7.",
-    zh: "安全门户，用于文档上传、税务历史和IRS记录 — 24/7可用。",
-    ht: "Pòtay sekirize pou telechaje dokiman, istwa taks ak dosye IRS — disponib 24/7.",
   };
 
   const currentStats = stats[language] || stats.en;
@@ -157,22 +148,17 @@ export function HeroSection() {
               <ArrowRight className="h-4 w-4" />
             </Button>
 
-            <div className="flex flex-col items-center sm:items-start gap-2">
-              <Link href="/portal">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="w-full sm:w-auto bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white text-lg px-8 py-6 font-semibold gap-2"
-                  data-testid="button-portal-cta"
-                >
-                  <UserCircle className="h-5 w-5" />
-                  {portalButton[language] || portalButton.en}
-                </Button>
-              </Link>
-              <p className="text-sm text-white/60 text-center sm:text-left max-w-xs">
-                {portalMicrocopy[language] || portalMicrocopy.en}
-              </p>
-            </div>
+            <Link href="/portal">
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full sm:w-auto bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white text-lg px-8 py-6 font-semibold gap-2"
+                data-testid="button-portal-cta"
+              >
+                <UserCircle className="h-5 w-5" />
+                {portalButton[language] || portalButton.en}
+              </Button>
+            </Link>
           </div>
 
           <div className="pt-8 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto">

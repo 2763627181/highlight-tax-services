@@ -1,22 +1,17 @@
 {
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/handler.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/handler.js" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "outputDirectory": "dist/public",
-  "framework": null,
-  "functions": {
-    "api/index.js": {
-      "maxDuration": 60
-    }
-  },
-  "regions": ["iad1"],
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/api/index"
-    }
-  ]
+  "outputDirectory": "dist/public"
 }

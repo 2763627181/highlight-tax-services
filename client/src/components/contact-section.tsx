@@ -39,8 +39,8 @@ export function ContactSection() {
 
   const content = {
     en: {
-      title: "Contact a Tax Professional Nationwide",
-      subtitle: "Have questions or ready to get started? Request a consultation or access your secure client portal to upload documents and begin your tax filing process today.",
+      title: "Contact Us",
+      subtitle: "Have questions? Send us a message and we'll respond as soon as possible.",
       formTitle: "Contact Form",
       nameLabel: "Name *",
       namePlaceholder: "Your full name",

@@ -3,7 +3,7 @@
  * Página del portal de clientes con soporte multi-idioma
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -424,6 +424,17 @@ export default function Portal() {
     hasNumber: /[0-9]/.test(passwordValue),
   };
 
+  // Redirigir usuarios autenticados según su rol
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === "admin" || user.role === "preparer") {
+        setLocation("/admin");
+      } else {
+        setLocation("/dashboard");
+      }
+    }
+  }, [user, authLoading, setLocation]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -432,13 +443,13 @@ export default function Portal() {
     );
   }
 
+  // Si el usuario está autenticado, mostrar loading mientras se redirige
   if (user) {
-    if (user.role === "admin" || user.role === "preparer") {
-      setLocation("/admin");
-    } else {
-      setLocation("/dashboard");
-    }
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const getErrorMessage = (error: unknown): string => {

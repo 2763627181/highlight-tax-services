@@ -42,12 +42,12 @@ import type { User } from "@shared/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
 
 /**
- * Timeout para peticiones fetch (60 segundos)
- * Aumentado para registro que puede tardar más en serverless (cold start + bcrypt)
- * Versión: 1.2.2 - FIX: Timeout aumentado para registro
+ * Timeout para peticiones fetch (30 segundos)
+ * Implementado para solucionar errores de conexión en registro
+ * Versión: 1.2.0 - FIX: Errores JSON y conexión
  * Última actualización: 2025-12-11
  */
-const FETCH_TIMEOUT = 60000; // 60 segundos para dar tiempo a cold starts y operaciones pesadas
+const FETCH_TIMEOUT = 30000;
 
 /**
  * Realiza una petición fetch con timeout
@@ -73,23 +73,8 @@ async function fetchWithTimeout(
     return response;
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error instanceof Error) {
-      // Distinguir entre diferentes tipos de errores
-      if (error.name === "AbortError") {
-        throw new Error("La solicitud tardó demasiado. Por favor, intenta de nuevo.");
-      }
-      // Si es un error de red real (sin conexión), mostrar mensaje específico
-      if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
-        // Verificar si realmente hay conexión intentando una petición simple
-        try {
-          await fetch("/api/health", { method: "GET", signal: AbortSignal.timeout(2000) });
-          // Si llegamos aquí, hay conexión pero el endpoint específico falló
-          throw new Error("Error del servidor. Por favor, intenta de nuevo.");
-        } catch {
-          // Si falla el health check, probablemente no hay conexión
-          throw new Error("Error de conexión. Verifica tu internet e intenta de nuevo.");
-        }
-      }
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Network error. Request timeout. Please check your internet connection and try again.");
     }
     throw error;
   }
@@ -235,15 +220,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (result.data && result.data.token) {
           setWsToken(result.data.token);
         }
-      } else {
-        // Si falla, no es crítico - WebSocket es opcional
-        console.log('[Auth] WebSocket token no disponible (no crítico)');
-        setWsToken(null);
       }
     } catch (error) {
-      // WebSocket es opcional, no mostrar error al usuario
-      console.log('[Auth] WebSocket token no disponible (no crítico):', error);
-      setWsToken(null);
+      console.error("Failed to fetch WS token:", error);
     }
   }, []);
 
@@ -257,27 +236,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const checkAuth = useCallback(async () => {
     try {
-      // OPTIMIZADO: Timeout más corto (5 segundos) para evitar esperas largas
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
       const response = await fetch("/api/auth/me", {
         credentials: "include",
-        signal: controller.signal,
       });
-      
-      clearTimeout(timeoutId);
-      
       if (response.ok) {
         const result = await safeJsonParse(response);
         if (result.data && result.data.user) {
           setUser(result.data.user);
-          // Fetch WS token en background (no bloquea)
-          fetchWsToken().catch(() => {}); // Ignorar errores de WS
-        } else if (result.user) {
-          // Compatibilidad con formato anterior
-          setUser(result.user);
-          fetchWsToken().catch(() => {});
+          fetchWsToken();
         } else {
           setUser(null);
           setWsToken(null);
@@ -287,10 +253,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setWsToken(null);
       }
     } catch (error) {
-      // Si es timeout, no mostrar error al usuario
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('[Auth] Auth check timeout (non-critical)');
-      }
       setUser(null);
       setWsToken(null);
     } finally {

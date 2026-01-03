@@ -3,7 +3,7 @@
  * Panel de control del cliente con soporte multi-idioma
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
@@ -27,14 +27,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { lazy, Suspense } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { WhatsAppButton } from "@/components/whatsapp-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSelector } from "@/components/language-selector";
-
-// Lazy load de componentes pesados
-const MessagingPanel = lazy(() => import("@/components/messaging").then(m => ({ default: m.MessagingPanel })));
+import { MessagingPanel } from "@/components/messaging";
 import type { TaxCase, Document, Appointment } from "@shared/schema";
 import {
   FileText,
@@ -53,27 +50,28 @@ import {
   FileUp,
 } from "lucide-react";
 import { format } from "date-fns";
-import { enUS } from "date-fns/locale";
+import { enUS, es, fr, pt, zhCN } from "date-fns/locale";
 
-// Lazy load de locales de date-fns para reducir el bundle inicial
-const getDateLocale = async (lang: string) => {
+const getDateLocale = (lang: string) => {
   switch (lang) {
-    case "es": return (await import("date-fns/locale/es")).es;
-    case "fr": return (await import("date-fns/locale/fr")).fr;
-    case "pt": return (await import("date-fns/locale/pt")).pt;
-    case "zh": return (await import("date-fns/locale/zh-CN")).zhCN;
+    case "es": return es;
+    case "fr": return fr;
+    case "pt": return pt;
+    case "zh": return zhCN;
     default: return enUS;
   }
-};
-
-// Versión síncrona para uso inmediato (fallback a enUS)
-const getDateLocaleSync = (lang: string) => {
-  return enUS; // Por ahora siempre usar enUS, se puede mejorar después
 };
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const { user, logout, isLoading: authLoading } = useAuth();
+
+  // Proteger ruta: redirigir si no está autenticado
+  useEffect(() => {
+    if (!authLoading && !user) {
+      setLocation("/portal");
+    }
+  }, [user, authLoading, setLocation]);
   const { toast } = useToast();
   const { language } = useI18n();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -575,22 +573,16 @@ export default function Dashboard() {
   const { data: cases, isLoading: casesLoading } = useQuery<TaxCase[]>({
     queryKey: ["/api/cases"],
     enabled: !!user,
-    staleTime: 30000, // Cache por 30 segundos
-    gcTime: 5 * 60 * 1000, // Mantener en cache por 5 minutos
   });
 
   const { data: documents, isLoading: documentsLoading } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
     enabled: !!user,
-    staleTime: 30000, // Cache por 30 segundos
-    gcTime: 5 * 60 * 1000, // Mantener en cache por 5 minutos
   });
 
   const { data: appointments, isLoading: appointmentsLoading } = useQuery<Appointment[]>({
     queryKey: ["/api/appointments"],
     enabled: !!user,
-    staleTime: 30000, // Cache por 30 segundos
-    gcTime: 5 * 60 * 1000, // Mantener en cache por 5 minutos
   });
 
   const uploadMutation = useMutation({
@@ -674,9 +666,13 @@ export default function Dashboard() {
     );
   }
 
+  // Si no hay usuario, mostrar loading mientras se redirige
   if (!user) {
-    setLocation("/portal");
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const getInitials = (name: string) => {
@@ -998,7 +994,7 @@ export default function Dashboard() {
                               </Badge>
                             </div>
                             <p className="text-xs text-muted-foreground">
-                              {format(new Date(doc.createdAt), "d MMM yyyy", { locale: getDateLocaleSync(language) })}
+                              {format(new Date(doc.createdAt), "d MMM yyyy", { locale: getDateLocale(language) })}
                               {doc.isFromPreparer && ` • ${t.fromPreparer}`}
                             </p>
                           </div>
@@ -1113,7 +1109,7 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2">
                             <CalendarDays className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium text-sm">
-                              {format(new Date(apt.appointmentDate), "d MMM yyyy", { locale: getDateLocaleSync(language) })}
+                              {format(new Date(apt.appointmentDate), "d MMM yyyy", { locale: getDateLocale(language) })}
                             </span>
                           </div>
                           <Badge
@@ -1147,9 +1143,7 @@ export default function Dashboard() {
                 <CardDescription>{t.messagesDesc}</CardDescription>
               </CardHeader>
               <CardContent>
-                <Suspense fallback={<Skeleton className="h-32" />}>
-                  <MessagingPanel />
-                </Suspense>
+                <MessagingPanel />
               </CardContent>
             </Card>
           </div>

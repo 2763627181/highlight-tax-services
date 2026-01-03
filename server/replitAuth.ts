@@ -139,30 +139,12 @@ async function upsertOAuthUser(claims: any): Promise<{ id: number; email: string
 }
 
 export async function setupAuth(app: Express) {
-  try {
-    console.log('[Auth] Setting up authentication...');
-    app.set("trust proxy", 1);
-    
-    try {
-      app.use(getSession());
-      app.use(passport.initialize());
-      app.use(passport.session());
-      console.log('[Auth] Session middleware configured');
-    } catch (sessionError) {
-      console.warn('[Auth] Warning: Could not setup session middleware:', sessionError);
-      // Continuar sin sesiones si falla (puede ser normal en serverless)
-    }
+  app.set("trust proxy", 1);
+  app.use(getSession());
+  app.use(passport.initialize());
+  app.use(passport.session());
 
-    let config;
-    try {
-      config = await getOidcConfig();
-      console.log('[Auth] OIDC config loaded');
-    } catch (configError) {
-      console.warn('[Auth] Warning: Could not load OIDC config:', configError);
-      // Si no hay config de OAuth, simplemente no configuramos las rutas OAuth
-      // pero continuamos con el resto de la autenticación
-      return;
-    }
+  const config = await getOidcConfig();
 
   const verify: VerifyFunction = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
@@ -171,8 +153,7 @@ export async function setupAuth(app: Express) {
     try {
       const claims = tokens.claims();
       if (!claims) {
-        verified(new Error("No claims found in token"));
-        return;
+        throw new Error("No claims found in token");
       }
       const user = await upsertOAuthUser(claims);
       const sessionUser = { ...user, claims, expires_at: claims.exp };
@@ -188,18 +169,12 @@ export async function setupAuth(app: Express) {
   const ensureStrategy = (domain: string) => {
     const strategyName = `replitauth:${domain}`;
     if (!registeredStrategies.has(strategyName)) {
-      // Usar VITE_APP_URL si está disponible, sino usar el dominio de la request
-      const baseUrl = process.env.VITE_APP_URL || `https://${domain}`;
-      const callbackURL = `${baseUrl}/api/auth/oidc/callback`;
-      
-      console.log(`[Auth] Setting up OAuth strategy for ${domain} with callback: ${callbackURL}`);
-      
       const strategy = new Strategy(
         {
           name: strategyName,
           config,
           scope: "openid email profile offline_access",
-          callbackURL,
+          callbackURL: `https://${domain}/api/auth/oidc/callback`,
         },
         verify,
       );
@@ -223,21 +198,15 @@ export async function setupAuth(app: Express) {
     ensureStrategy(req.hostname);
     passport.authenticate(`replitauth:${req.hostname}`, (err: any, user: any) => {
       if (err || !user) {
-        console.error('[Auth] OAuth callback error:', err);
-        // Usar URL absoluta para el redirect
-        const baseUrl = process.env.VITE_APP_URL || `${req.protocol}://${req.hostname}`;
-        return res.redirect(`${baseUrl}/portal?error=auth_failed`);
+        return res.redirect("/portal?error=auth_failed");
       }
 
       issueAuthToken(res, user);
       
-      // Usar URL absoluta para los redirects
-      const baseUrl = process.env.VITE_APP_URL || `${req.protocol}://${req.hostname}`;
-      
       if (user.role === "admin" || user.role === "preparer") {
-        return res.redirect(`${baseUrl}/admin`);
+        return res.redirect("/admin");
       }
-      return res.redirect(`${baseUrl}/dashboard`);
+      return res.redirect("/dashboard");
     })(req, res, next);
   });
 
@@ -258,11 +227,6 @@ export async function setupAuth(app: Express) {
       res.redirect("/");
     }
   });
-  } catch (error) {
-    console.error('[Auth] Error setting up authentication:', error);
-    // No lanzar error, solo loguear - la app puede funcionar sin OAuth
-    console.warn('[Auth] Continuing without OAuth setup');
-  }
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {

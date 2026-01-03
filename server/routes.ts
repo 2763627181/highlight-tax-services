@@ -47,15 +47,6 @@ import {
   sendAppointmentConfirmation,
   sendPasswordResetEmail
 } from "./email";
-import {
-  logActivityInBackground,
-  sendWelcomeEmailInBackground,
-  sendContactNotificationInBackground,
-  sendDocumentNotificationInBackground,
-  sendCaseStatusUpdateInBackground,
-  sendAppointmentConfirmationInBackground,
-  sendPasswordResetEmailInBackground,
-} from "./background-jobs";
 import crypto from "crypto";
 import { wsService } from "./websocket";
 
@@ -84,12 +75,11 @@ const JWT_SECRET: string = (() => {
 /**
  * Número de rondas de sal para bcrypt
  * Mayor número = más seguro pero más lento
- * 10 es un buen balance entre seguridad y velocidad en serverless
- * (12 es más seguro pero puede causar timeouts en cold starts)
+ * 12 es el balance recomendado para producción
  * 
- * @security Aumentar a 12 si se detectan ataques de fuerza bruta
+ * @security Aumentar si se detectan ataques de fuerza bruta
  */
-const BCRYPT_ROUNDS = 10;
+const BCRYPT_ROUNDS = 12;
 
 /**
  * Duración del token JWT en días
@@ -547,16 +537,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server | undefined> {
   try {
-    const routesStart = Date.now();
     console.log('[Routes] Starting route registration...');
-    
-    // OPTIMIZADO: Health check rápido ANTES de cualquier inicialización pesada
-    app.get("/health", (_req: Request, res: Response) => {
-      res.status(200).json({ status: "ok", timestamp: Date.now() });
-    });
-    app.get("/api/health", (_req: Request, res: Response) => {
-      res.status(200).json({ status: "ok", timestamp: Date.now() });
-    });
     
     // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
     if (httpServer && wsService) {
@@ -573,12 +554,8 @@ export async function registerRoutes(
     }
     
     // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
-    // OPTIMIZADO: Hacer setupAuth no bloqueante para inicialización más rápida
-    console.log('[Routes] Setting up OAuth authentication (async)...');
-    setupAuth(app).catch((authError) => {
-      console.warn('[Routes] OAuth setup failed (non-critical):', authError);
-      // No fallar si OAuth no se puede configurar - la app puede funcionar sin OAuth
-    });
+    console.log('[Routes] Setting up OAuth authentication...');
+    await setupAuth(app);
     console.log('[Routes] OAuth authentication setup complete');
   } catch (error) {
     console.error('[Routes] Error during route registration setup:', error);
@@ -650,12 +627,12 @@ export async function registerRoutes(
         role: userRole as "client" | "preparer" | "admin",
       });
 
-      // OPTIMIZADO: Registrar actividad en background
-      logActivityInBackground(
-        user.id,
-        "user_created",
-        `Usuario creado: ${email} con rol ${userRole}`
-      );
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "user_created",
+        details: `Usuario creado: ${email} con rol ${userRole}`,
+      });
 
       res.json({
         success: true,
@@ -763,7 +740,15 @@ export async function registerRoutes(
         throw new Error("Storage no está inicializado");
       }
       
-      // Validar datos de entrada (hacerlo primero, es más rápido)
+      // Verificar conexión a la base de datos antes de continuar
+      try {
+        await db.execute(sql`SELECT 1`);
+      } catch (dbError) {
+        console.error("[Register] Database connection error:", dbError);
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        throw new Error(`No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.`);
+      }
+      // Validar datos de entrada
       const result = registerSchema.safeParse(req.body);
       if (!result.success) {
         res.status(400).json({ 
@@ -775,16 +760,15 @@ export async function registerRoutes(
 
       const { email, password, name, phone } = result.data;
 
-      // Verificar email único y hashear contraseña en paralelo (más rápido)
-      const [existingUser, hashedPassword] = await Promise.all([
-        storage.getUserByEmail(email),
-        bcrypt.hash(password, BCRYPT_ROUNDS)
-      ]);
-      
+      // Verificar email único
+      const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
         res.status(400).json({ message: "Este email ya está registrado" });
         return;
       }
+
+      // Hashear contraseña con bcrypt
+      const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
       // Crear usuario
       const user = await storage.createUser({
@@ -795,7 +779,17 @@ export async function registerRoutes(
         role: "client",
       });
 
-      // Generar token JWT (hacerlo antes de operaciones asíncronas)
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "user_registered",
+        details: `Nuevo usuario registrado: ${email}`,
+      });
+
+      // Enviar email de bienvenida (no bloquea la respuesta)
+      sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
+
+      // Generar token JWT
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         JWT_SECRET,
@@ -805,19 +799,9 @@ export async function registerRoutes(
       // Establecer cookie segura
       res.cookie("token", token, COOKIE_OPTIONS);
 
-      // Responder inmediatamente al cliente
       res.json({
         user: { id: user.id, email: user.email, role: user.role, name: user.name },
       });
-
-      // Operaciones en background (no bloquean la respuesta)
-      // Estas tareas se ejecutan de forma asíncrona y no afectan al usuario si fallan
-      logActivityInBackground(
-        user.id,
-        "user_registered",
-        `Nuevo usuario registrado: ${email}`
-      );
-      sendWelcomeEmailInBackground(user.name, user.email);
     } catch (error) {
       console.error("Error de registro:", error);
       
@@ -885,6 +869,13 @@ export async function registerRoutes(
         return;
       }
 
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "user_login",
+        details: `Usuario inició sesión: ${email}`,
+      });
+
       // Generar token JWT
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
@@ -895,18 +886,8 @@ export async function registerRoutes(
       // Establecer cookie segura
       res.cookie("token", token, COOKIE_OPTIONS);
 
-      // OPTIMIZADO: Registrar actividad en background para no bloquear respuesta
-      logActivityInBackground(
-        user.id,
-        "user_login",
-        `Usuario inició sesión: ${email}`
-      );
-
-      // Responder inmediatamente
       res.json({
-        data: {
-          user: { id: user.id, email: user.email, role: user.role, name: user.name },
-        },
+        user: { id: user.id, email: user.email, role: user.role, name: user.name },
       });
     } catch (error) {
       console.error("Error de login:", error);
@@ -924,13 +905,7 @@ export async function registerRoutes(
    */
   app.get("/api/auth/me", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
-    // OPTIMIZADO: Agregar headers de cache para reducir requests repetidos
-    res.setHeader("Cache-Control", "private, max-age=60"); // Cache por 1 minuto
-    // Mantener compatibilidad con ambos formatos
-    res.json({ 
-      data: { user: authReq.user },
-      user: authReq.user, // Compatibilidad con formato anterior
-    });
+    res.json({ user: authReq.user });
   });
 
   /**
@@ -985,20 +960,22 @@ export async function registerRoutes(
           role: "client",
         });
 
-        // Registrar actividad y enviar email en background
-        logActivityInBackground(
-          user.id,
-          "user_registered_oauth",
-          `Nuevo usuario OAuth registrado via ${provider}: ${normalizedEmail}`
-        );
-        sendWelcomeEmailInBackground(user.name, user.email);
+        // Registrar actividad
+        await storage.createActivityLog({
+          userId: user.id,
+          action: "user_registered_oauth",
+          details: `Nuevo usuario OAuth registrado via ${provider}: ${normalizedEmail}`,
+        });
+
+        // Enviar email de bienvenida
+        sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
       } else {
-        // Registrar login OAuth en background
-        logActivityInBackground(
-          user.id,
-          "user_login_oauth",
-          `Usuario inició sesión via ${provider}: ${normalizedEmail}`
-        );
+        // Registrar login OAuth
+        await storage.createActivityLog({
+          userId: user.id,
+          action: "user_login_oauth",
+          details: `Usuario inició sesión via ${provider}: ${normalizedEmail}`,
+        });
       }
 
       // Generar token JWT
@@ -1091,18 +1068,19 @@ export async function registerRoutes(
       
       await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
-      // Registrar actividad en background
-      logActivityInBackground(
-        user.id,
-        "password_reset_requested",
-        `Password reset requested for ${normalizedEmail}`
-      );
-
-      // Enviar email en background
-      sendPasswordResetEmailInBackground({
+      // Enviar email
+      sendPasswordResetEmail({
         name: user.name,
         email: user.email,
-        resetUrl: `${process.env.VITE_APP_URL || 'https://highlighttax.com'}/reset-password?token=${resetToken}`,
+        resetToken: resetToken, // Enviar token sin hash
+        expiresInMinutes: 30,
+      }).catch(console.error);
+
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "password_reset_requested",
+        details: `Password reset requested for ${normalizedEmail}`,
       });
 
       res.json(genericResponse);
@@ -1163,12 +1141,12 @@ export async function registerRoutes(
       // Marcar token como usado
       await storage.markPasswordResetTokenAsUsed(resetToken.id);
 
-      // Registrar actividad en background
-      logActivityInBackground(
-        user.id,
-        "password_reset_completed",
-        `Password reset completed for ${user.email}`
-      );
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: user.id,
+        action: "password_reset_completed",
+        details: `Password reset completed for ${user.email}`,
+      });
 
       res.json({ message: "Password reset successfully" });
     } catch (error) {
@@ -1237,13 +1215,13 @@ export async function registerRoutes(
       const contact = await storage.createContactSubmission(result.data);
       
       // Notificar al administrador
-      // Enviar notificación en background
-      sendContactNotificationInBackground({
+      sendContactFormNotification({
         name: contact.name,
         email: contact.email,
         phone: contact.phone || undefined,
         message: contact.message,
-      });
+        service: contact.service || undefined,
+      }).catch(console.error);
 
       res.json({ success: true, contact });
     } catch (error) {
@@ -1368,13 +1346,14 @@ export async function registerRoutes(
         });
 
         // Registrar actividad
-        // Registrar actividad y notificar en background
-        logActivityInBackground(
-          authReq.user!.id,
-          "document_uploaded",
-          `Documento subido: ${req.file.originalname} (${docCategory})`
-        );
-        sendDocumentNotificationInBackground({
+        await storage.createActivityLog({
+          userId: authReq.user!.id,
+          action: "document_uploaded",
+          details: `Documento subido: ${req.file.originalname} (${docCategory})`,
+        });
+
+        // Notificar al administrador
+        sendDocumentUploadNotification({
           clientName: authReq.user!.name,
           clientEmail: authReq.user!.email,
           fileName: req.file.originalname,
@@ -1526,12 +1505,12 @@ export async function registerRoutes(
         status: "scheduled",
       });
 
-      // OPTIMIZADO: Registrar actividad en background
-      logActivityInBackground(
-        authReq.user!.id,
-        "appointment_scheduled",
-        `Cita agendada para ${appointmentDate}`
-      );
+      // Registrar actividad
+      await storage.createActivityLog({
+        userId: authReq.user!.id,
+        action: "appointment_scheduled",
+        details: `Cita agendada para ${appointmentDate}`,
+      });
 
       // Enviar confirmación por email
       sendAppointmentConfirmation({
@@ -1683,12 +1662,11 @@ export async function registerRoutes(
       });
 
       // Registrar actividad
-      // Registrar actividad en background
-      logActivityInBackground(
-        authReq.user!.id,
-        "message_sent",
-        `Mensaje enviado a ${recipient.name}`
-      );
+      await storage.createActivityLog({
+        userId: authReq.user!.id,
+        action: "message_sent",
+        details: `Mensaje enviado a ${recipient.name}`,
+      });
 
       // Notificación en tiempo real (solo si wsService está disponible)
       if (wsService) {
@@ -1892,14 +1870,13 @@ export async function registerRoutes(
         status: "pending",
       });
 
-      res.json(taxCase);
+      await storage.createActivityLog({
+        userId: authReq.user!.id,
+        action: "case_created",
+        details: `Caso creado para cliente ${clientId}, año ${filingYear}`,
+      });
 
-      // Registrar actividad en background (después de responder)
-      logActivityInBackground(
-        authReq.user!.id,
-        "case_created",
-        `Caso creado para cliente ${clientId}, año ${filingYear}`
-      );
+      res.json(taxCase);
     } catch (error) {
       console.error("Error creando caso:", error);
       res.status(500).json({ message: "Error al crear caso" });
@@ -1958,24 +1935,24 @@ export async function registerRoutes(
         return;
       }
 
-      // Registrar actividad en background
-      logActivityInBackground(
-        authReq.user!.id,
-        "case_updated",
-        `Caso ${caseId} actualizado: status=${status || existingCase.status}`
-      );
+      await storage.createActivityLog({
+        userId: authReq.user!.id,
+        action: "case_updated",
+        details: `Caso ${caseId} actualizado: status=${status}`,
+      });
 
-      // Notificar al cliente si cambió el estado (en background)
+      // Notificar al cliente si cambió el estado
       if (status && status !== existingCase.status) {
         const client = await storage.getUser(existingCase.clientId);
         if (client) {
-          sendCaseStatusUpdateInBackground({
+          sendCaseStatusUpdate({
             clientName: client.name,
             clientEmail: client.email,
             caseId: caseId,
-            status: status,
             filingYear: existingCase.filingYear,
-          });
+            newStatus: status,
+            notes: notes || undefined,
+          }).catch(console.error);
 
           // Notificación en tiempo real (solo si wsService está disponible)
           if (wsService) {
@@ -2194,11 +2171,12 @@ export async function registerRoutes(
 
       await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
 
-      // Enviar email en background
-      sendPasswordResetEmailInBackground({
+      // Send password reset email
+      await sendPasswordResetEmail({
         name: user.name || "Usuario",
         email: user.email,
-        resetUrl: `${process.env.VITE_APP_URL || 'https://highlighttax.com'}/reset-password?token=${token}`,
+        resetToken: token,
+        expiresInMinutes: 30,
       });
 
       res.json({ message: "Email de restablecimiento enviado" });

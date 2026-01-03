@@ -12,9 +12,8 @@
     "db:setup": "tsx script/setup-database.ts",
     "db:execute-sql": "tsx script/execute-sql.ts",
     "db:check": "tsx script/check-tables.ts",
-    "create-user": "tsx script/create-user.ts",
-    "verify-supabase": "tsx script/verificar-supabase-config.ts",
-    "verify-region": "tsx script/verificar-region.ts"
+    "db:enable-rls": "tsx script/enable-rls.ts",
+    "create-user": "tsx script/create-user.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

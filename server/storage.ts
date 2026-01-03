@@ -67,7 +67,6 @@ import {
 } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql, count, sum } from "drizzle-orm";
-import { cache, CacheKeys } from "./cache";
 
 // =============================================================================
 // INTERFAZ DE ALMACENAMIENTO
@@ -449,26 +448,10 @@ export class DatabaseStorage implements IStorage {
    * 
    * @param id - ID único del usuario
    * @returns Usuario encontrado o undefined
-   * @cached Por 2 minutos para mejorar rendimiento
    */
   async getUser(id: number): Promise<User | undefined> {
-    // Intentar obtener del cache primero
-    const cacheKey = CacheKeys.user(id);
-    const cached = cache.get<User>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Si no está en cache, consultar DB
     const [user] = await db.select().from(users).where(eq(users.id, id));
-    const result = user || undefined;
-    
-    // Cachear resultado si existe (2 minutos)
-    if (result) {
-      cache.set(cacheKey, result, 2 * 60 * 1000);
-    }
-    
-    return result;
+    return user || undefined;
   }
 
   /**
@@ -480,25 +463,8 @@ export class DatabaseStorage implements IStorage {
    * @returns Usuario encontrado o undefined
    */
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const normalizedEmail = email.toLowerCase().trim();
-    const cacheKey = CacheKeys.userByEmail(normalizedEmail);
-    
-    // Intentar obtener del cache primero
-    const cached = cache.get<User>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Si no está en cache, consultar DB
-    const [user] = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
-    const result = user || undefined;
-    
-    // Cachear resultado si existe (2 minutos)
-    if (result) {
-      cache.set(cacheKey, result, 2 * 60 * 1000);
-    }
-    
-    return result;
+    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase()));
+    return user || undefined;
   }
 
   /**
@@ -510,19 +476,8 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
-      .values(insertUser as any)
+      .values(insertUser)
       .returning();
-    
-    // Cachear el nuevo usuario
-    if (user) {
-      cache.set(CacheKeys.user(user.id), user, 2 * 60 * 1000);
-      if (user.email) {
-        cache.set(CacheKeys.userByEmail(user.email.toLowerCase()), user, 2 * 60 * 1000);
-      }
-      // Invalidar lista de clientes
-      cache.invalidatePattern('users:clients');
-    }
-    
     return user;
   }
 
@@ -534,7 +489,6 @@ export class DatabaseStorage implements IStorage {
    * @param id - ID del usuario
    * @param data - Campos a actualizar
    * @returns Usuario actualizado o undefined si no existe
-   * @cached Invalida cache del usuario actualizado
    */
   async updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined> {
     const [user] = await db
@@ -542,16 +496,6 @@ export class DatabaseStorage implements IStorage {
       .set({ ...data, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
-    
-    // Invalidar cache del usuario actualizado
-    if (user) {
-      cache.invalidate(CacheKeys.user(id));
-      if (user.email) {
-        cache.invalidate(CacheKeys.userByEmail(user.email.toLowerCase()));
-      }
-      cache.invalidatePattern('users:clients');
-    }
-    
     return user || undefined;
   }
 
@@ -559,18 +503,9 @@ export class DatabaseStorage implements IStorage {
    * Obtiene todos los clientes (rol = 'client')
    * 
    * @returns Lista de clientes ordenados por fecha de creación descendente
-   * @cached Por 1 minuto para mejorar rendimiento del admin
    */
   async getAllClients(): Promise<User[]> {
-    const cacheKey = CacheKeys.userClients();
-    const cached = cache.get<User[]>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    const clients = await db.select().from(users).where(eq(users.role, "client")).orderBy(desc(users.createdAt));
-    cache.set(cacheKey, clients, 60 * 1000); // Cache por 1 minuto
-    return clients;
+    return db.select().from(users).where(eq(users.role, "client")).orderBy(desc(users.createdAt));
   }
 
   /**
@@ -582,45 +517,29 @@ export class DatabaseStorage implements IStorage {
    * @returns Clientes con documentsCount y casesCount
    */
   async getClientsWithDetails(): Promise<(User & { documentsCount: number; casesCount: number })[]> {
-    try {
-      const clients = await this.getAllClients();
-      const clientsWithDetails = await Promise.all(
-        clients.map(async (client) => {
-          try {
-            // Contar documentos del cliente
-            const [clientDocs] = await db
-              .select({ count: count() })
-              .from(documents)
-              .where(eq(documents.clientId, client.id));
-            
-            // Contar casos del cliente
-            const [clientCases] = await db
-              .select({ count: count() })
-              .from(taxCases)
-              .where(eq(taxCases.clientId, client.id));
-            
-            return {
-              ...client,
-              documentsCount: Number(clientDocs?.count || 0),
-              casesCount: Number(clientCases?.count || 0),
-            };
-          } catch (error) {
-            console.error(`[Storage] Error obteniendo detalles para cliente ${client.id}:`, error);
-            // Devolver cliente con conteos en 0 si hay error
-            return {
-              ...client,
-              documentsCount: 0,
-              casesCount: 0,
-            };
-          }
-        })
-      );
-      return clientsWithDetails;
-    } catch (error) {
-      console.error("[Storage] Error en getClientsWithDetails:", error);
-      // Devolver array vacío en caso de error
-      return [];
-    }
+    const clients = await this.getAllClients();
+    const clientsWithDetails = await Promise.all(
+      clients.map(async (client) => {
+        // Contar documentos del cliente
+        const clientDocs = await db
+          .select({ count: count() })
+          .from(documents)
+          .where(eq(documents.clientId, client.id));
+        
+        // Contar casos del cliente
+        const clientCases = await db
+          .select({ count: count() })
+          .from(taxCases)
+          .where(eq(taxCases.clientId, client.id));
+        
+        return {
+          ...client,
+          documentsCount: clientDocs[0]?.count || 0,
+          casesCount: clientCases[0]?.count || 0,
+        };
+      })
+    );
+    return clientsWithDetails;
   }
 
   // ===========================================================================
@@ -654,7 +573,7 @@ export class DatabaseStorage implements IStorage {
   async createAuthIdentity(identity: InsertAuthIdentity): Promise<AuthIdentity> {
     const [newIdentity] = await db
       .insert(authIdentities)
-      .values(identity as any)
+      .values(identity)
       .returning();
     return newIdentity;
   }
@@ -715,7 +634,7 @@ export class DatabaseStorage implements IStorage {
   async createTaxCase(taxCase: InsertTaxCase): Promise<TaxCase> {
     const [newCase] = await db
       .insert(taxCases)
-      .values(taxCase as any)
+      .values(taxCase)
       .returning();
     return newCase;
   }
@@ -815,7 +734,7 @@ export class DatabaseStorage implements IStorage {
   async createDocument(document: InsertDocument): Promise<Document> {
     const [newDoc] = await db
       .insert(documents)
-      .values(document as any)
+      .values(document)
       .returning();
     return newDoc;
   }
@@ -884,7 +803,7 @@ export class DatabaseStorage implements IStorage {
   async createAppointment(appointment: InsertAppointment): Promise<Appointment> {
     const [newAppointment] = await db
       .insert(appointments)
-      .values(appointment as any)
+      .values(appointment)
       .returning();
     return newAppointment;
   }
@@ -974,12 +893,12 @@ export class DatabaseStorage implements IStorage {
 
     // Construir respuesta con datos del partner
     const conversations = [];
-    for (const [partnerId, data] of Array.from(conversationMap)) {
+    for (const [partnerId, data] of Array.from(conversationMap.entries())) {
       const partner = await this.getUser(partnerId);
       if (partner) {
         // Contar mensajes no leídos enviados al usuario actual
         const unreadCount = data.messages.filter(
-          (m: any) => m.recipientId === userId && !m.isRead
+          (m: { recipientId: number; isRead: boolean | null }) => m.recipientId === userId && !m.isRead
         ).length;
         
         conversations.push({
@@ -1007,7 +926,7 @@ export class DatabaseStorage implements IStorage {
   async createMessage(message: InsertMessage): Promise<Message> {
     const [newMessage] = await db
       .insert(messages)
-      .values(message as any)
+      .values(message)
       .returning();
     return newMessage;
   }
@@ -1064,7 +983,7 @@ export class DatabaseStorage implements IStorage {
   async createContactSubmission(contact: InsertContactSubmission): Promise<ContactSubmission> {
     const [newContact] = await db
       .insert(contactSubmissions)
-      .values(contact as any)
+      .values(contact)
       .returning();
     return newContact;
   }
@@ -1098,7 +1017,7 @@ export class DatabaseStorage implements IStorage {
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
     const [newLog] = await db
       .insert(activityLogs)
-      .values(log as any)
+      .values(log)
       .returning();
     return newLog;
   }
@@ -1124,47 +1043,36 @@ export class DatabaseStorage implements IStorage {
     completedCases: number;
     totalRefunds: number;
   }> {
-    try {
-      // Contar clientes
-      const [clientCount] = await db
-        .select({ count: count() })
-        .from(users)
-        .where(eq(users.role, "client"));
+    // Contar clientes
+    const [clientCount] = await db
+      .select({ count: count() })
+      .from(users)
+      .where(eq(users.role, "client"));
 
-      // Contar casos pendientes
-      const [pendingCount] = await db
-        .select({ count: count() })
-        .from(taxCases)
-        .where(eq(taxCases.status, "pending"));
+    // Contar casos pendientes
+    const [pendingCount] = await db
+      .select({ count: count() })
+      .from(taxCases)
+      .where(eq(taxCases.status, "pending"));
 
-      // Contar casos completados
-      const [completedCount] = await db
-        .select({ count: count() })
-        .from(taxCases)
-        .where(sql`${taxCases.status} IN ('approved', 'refund_issued')`);
+    // Contar casos completados
+    const completedCases = await db
+      .select({ count: count() })
+      .from(taxCases)
+      .where(sql`${taxCases.status} IN ('approved', 'refund_issued')`);
 
-      // Sumar total de reembolsos
-      const [refundsSum] = await db
-        .select({ total: sum(taxCases.finalAmount) })
-        .from(taxCases)
-        .where(sql`${taxCases.finalAmount} IS NOT NULL`);
+    // Sumar total de reembolsos
+    const [refundsSum] = await db
+      .select({ total: sum(taxCases.finalAmount) })
+      .from(taxCases)
+      .where(sql`${taxCases.finalAmount} IS NOT NULL`);
 
-      return {
-        totalClients: Number(clientCount?.count || 0),
-        pendingCases: Number(pendingCount?.count || 0),
-        completedCases: Number(completedCount?.count || 0),
-        totalRefunds: parseFloat(refundsSum?.total || "0") || 0,
-      };
-    } catch (error) {
-      console.error("[Storage] Error en getAdminStats:", error);
-      // Devolver valores por defecto en caso de error
-      return {
-        totalClients: 0,
-        pendingCases: 0,
-        completedCases: 0,
-        totalRefunds: 0,
-      };
-    }
+    return {
+      totalClients: clientCount?.count || 0,
+      pendingCases: pendingCount?.count || 0,
+      completedCases: completedCases[0]?.count || 0,
+      totalRefunds: parseFloat(refundsSum?.total || "0"),
+    };
   }
 
   /**
