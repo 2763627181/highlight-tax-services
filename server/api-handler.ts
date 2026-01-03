@@ -8,10 +8,8 @@ let handler: any = null;
 let initError: Error | null = null;
 
 async function handlerFn(req: any, res: any) {
-  // Asegurar que siempre devolvamos JSON
-  if (!res.headersSent) {
-    res.setHeader('Content-Type', 'application/json');
-  }
+  // NO forzar Content-Type aquí - dejar que Express lo maneje
+  // Esto permite que los archivos estáticos se sirvan con sus tipos MIME correctos
 
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
