@@ -5,6 +5,9 @@ node_modules
 dist
 server/public
 
+# Vercel API compiled files (keep handler.js for deployment)
+api/index.js
+
 # OS files
 .DS_Store
 Thumbs.db
