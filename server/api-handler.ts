@@ -42,11 +42,17 @@ async function handlerFn(req: any, res: any) {
       });
       
       // Validar variables críticas antes de continuar
+      const missingVars: string[] = [];
       if (!process.env.DATABASE_URL) {
-        throw new Error('DATABASE_URL is required but not set');
+        missingVars.push('DATABASE_URL');
       }
       if (!process.env.SESSION_SECRET) {
-        throw new Error('SESSION_SECRET is required but not set');
+        missingVars.push('SESSION_SECRET');
+      }
+      if (missingVars.length > 0) {
+        const errorMsg = `Missing required environment variables: ${missingVars.join(', ')}`;
+        console.error('[API]', errorMsg);
+        throw new Error(errorMsg);
       }
       
       // Crear la app Express
@@ -92,18 +98,35 @@ async function handlerFn(req: any, res: any) {
         hasDatabaseUrl: !!process.env.DATABASE_URL,
         hasSessionSecret: !!process.env.SESSION_SECRET,
         nodeEnv: process.env.NODE_ENV,
+        cwd: process.cwd(),
+        vercel: !!process.env.VERCEL,
       });
       console.error('[API] =====================================');
       initError = err;
+      
+      // En Vercel, siempre mostrar el mensaje de error completo para debugging
       // @ts-ignore - process está disponible en runtime
       const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
-      res.status(500).json({ 
-        error: 'Server initialization failed',
-        message: isProduction 
-          ? 'Internal server error' 
-          : err.message,
-        stack: isProduction ? undefined : err.stack
-      });
+      const isVercel = !!process.env.VERCEL;
+      
+      // En Vercel, mostrar más detalles para debugging
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Server initialization failed',
+          message: (isProduction && !isVercel) 
+            ? 'Internal server error' 
+            : err.message,
+          stack: (isProduction && !isVercel) ? undefined : err.stack,
+          // En Vercel, incluir información adicional para debugging
+          ...(isVercel ? {
+            environment: {
+              hasDatabaseUrl: !!process.env.DATABASE_URL,
+              hasSessionSecret: !!process.env.SESSION_SECRET,
+              nodeEnv: process.env.NODE_ENV,
+            }
+          } : {})
+        });
+      }
       return;
     }
   }

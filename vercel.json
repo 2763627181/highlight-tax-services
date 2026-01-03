@@ -1,14 +1,7 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/handler.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/handler.js" },
-    { "src": "/(.*)", "dest": "/api/handler.js" }
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/handler" },
+    { "source": "/(.*)", "destination": "/api/handler" }
   ],
   "buildCommand": "npm run build",
   "installCommand": "npm install",

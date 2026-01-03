@@ -86241,11 +86241,17 @@ async function handlerFn(req, res) {
         nodeEnv: "production",
         hasViteAppUrl: !!process.env.VITE_APP_URL
       });
+      const missingVars = [];
       if (!process.env.DATABASE_URL) {
-        throw new Error("DATABASE_URL is required but not set");
+        missingVars.push("DATABASE_URL");
       }
       if (!process.env.SESSION_SECRET) {
-        throw new Error("SESSION_SECRET is required but not set");
+        missingVars.push("SESSION_SECRET");
+      }
+      if (missingVars.length > 0) {
+        const errorMsg = `Missing required environment variables: ${missingVars.join(", ")}`;
+        console.error("[API]", errorMsg);
+        throw new Error(errorMsg);
       }
       console.log("[API] Creating Express app...");
       app2 = await createApp(void 0);
@@ -86277,16 +86283,29 @@ async function handlerFn(req, res) {
       console.error("[API] Environment at error:", {
         hasDatabaseUrl: !!process.env.DATABASE_URL,
         hasSessionSecret: !!process.env.SESSION_SECRET,
-        nodeEnv: "production"
+        nodeEnv: "production",
+        cwd: process.cwd(),
+        vercel: !!process.env.VERCEL
       });
       console.error("[API] =====================================");
       initError = err;
       const isProduction = typeof process !== "undefined" && true;
-      res.status(500).json({
-        error: "Server initialization failed",
-        message: isProduction ? "Internal server error" : err.message,
-        stack: isProduction ? void 0 : err.stack
-      });
+      const isVercel = !!process.env.VERCEL;
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: "Server initialization failed",
+          message: isProduction && !isVercel ? "Internal server error" : err.message,
+          stack: isProduction && !isVercel ? void 0 : err.stack,
+          // En Vercel, incluir información adicional para debugging
+          ...isVercel ? {
+            environment: {
+              hasDatabaseUrl: !!process.env.DATABASE_URL,
+              hasSessionSecret: !!process.env.SESSION_SECRET,
+              nodeEnv: "production"
+            }
+          } : {}
+        });
+      }
       return;
     }
   }
