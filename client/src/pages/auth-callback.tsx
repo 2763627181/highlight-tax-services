@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { supabase } from "@/lib/supabase";
+import { getSession } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -25,19 +25,18 @@ export default function AuthCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        const session = await getSession();
         
-        if (sessionError) {
-          throw sessionError;
+        if (!session || !session.user) {
+          throw new Error('OAuth no está configurado o no se encontró sesión.');
         }
 
-        if (session?.user) {
-          await loginWithOAuth({
-            email: session.user.email || '',
-            name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
-            provider: session.user.app_metadata?.provider || 'oauth',
-            providerId: session.user.id,
-          });
+        await loginWithOAuth({
+          email: session.user.email || '',
+          name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          provider: (session.user.app_metadata?.provider as any) || 'oauth',
+          providerId: session.user.id,
+        });
 
           toast({
             title: "Welcome!",
