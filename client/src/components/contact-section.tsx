@@ -211,20 +211,43 @@ export function ContactSection() {
 
   const mutation = useMutation({
     mutationFn: async (data: ContactFormData) => {
-      return apiRequest("POST", "/api/contact", data);
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        let errorMessage = currentContent.toastErrorDesc;
+        try {
+          const errorData = await response.json();
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // Si no se puede parsear el JSON, usar el mensaje por defecto
+          errorMessage = `${currentContent.toastErrorDesc} (${response.status})`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      return await response.json();
     },
     onSuccess: () => {
       setIsSuccess(true);
       form.reset();
       toast({
         title: currentContent.toastSuccessTitle,
-        description: currentContent.toastSuccessDesc,
+        description: currentContent.toastErrorDesc,
       });
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: currentContent.toastErrorTitle,
-        description: currentContent.toastErrorDesc,
+        description: error.message || currentContent.toastErrorDesc,
         variant: "destructive",
       });
     },
