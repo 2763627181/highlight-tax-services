@@ -1,4 +1,6 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+// IMPORTACIÓN DINÁMICA: Solo importar Supabase cuando realmente se necesite
+// Esto previene que @supabase/supabase-js se cargue si no está configurado
+// y evita el error "clientId must be a non-empty string"
 
 // NO inicializar nada al importar el módulo
 // Solo leer las variables de entorno, pero NO crear el cliente todavía
@@ -18,16 +20,19 @@ if (!isSupabaseConfigured) {
 }
 
 // Lazy initialization: solo crear el cliente cuando sea necesario y esté configurado
-// Esto previene errores de inicialización cuando Supabase no está configurado
-let supabaseInstance: SupabaseClient | null = null;
+// Usar importación dinámica para evitar cargar @supabase/supabase-js si no está configurado
+let supabaseInstance: any = null;
+let SupabaseClientType: any = null;
 
-function getSupabaseClient(): SupabaseClient {
+async function getSupabaseClient(): Promise<any> {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase no está configurado. Por favor, configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.');
   }
   
   if (!supabaseInstance) {
     try {
+      // Importación dinámica: solo cargar cuando realmente se necesite
+      const { createClient } = await import('@supabase/supabase-js');
       supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
     } catch (error) {
       console.error('[Supabase] Error creating client:', error);
@@ -38,46 +43,9 @@ function getSupabaseClient(): SupabaseClient {
   return supabaseInstance;
 }
 
-// Exportar un Proxy que SOLO se ejecuta cuando se accede a una propiedad
-// Esto previene la inicialización temprana de Supabase
-export const supabase = new Proxy({} as SupabaseClient, {
-  get(_target, prop) {
-    // Si no está configurado, retornar objetos/funciones que lanzan errores claros
-    if (!isSupabaseConfigured) {
-      // Para 'auth', retornar un Proxy que lanza error solo cuando se usa
-      if (prop === 'auth') {
-        return new Proxy({} as any, {
-          get(_authTarget, authProp) {
-            throw new Error('Supabase no está configurado. OAuth no está disponible. Configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.');
-          }
-        });
-      }
-      // Para cualquier otra propiedad, retornar función que lanza error
-      if (typeof prop === 'string') {
-        return () => {
-          throw new Error(`Supabase no está configurado. La propiedad '${prop}' no está disponible.`);
-        };
-      }
-      return undefined;
-    }
-    
-    // Si está configurado, obtener el cliente y retornar la propiedad
-    try {
-      const client = getSupabaseClient();
-      const value = (client as any)[prop];
-      if (typeof value === 'function') {
-        return value.bind(client);
-      }
-      return value;
-    } catch (error) {
-      // Si hay error, retornar función que lanza el error
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      return () => {
-        throw new Error(`Error accediendo a Supabase: ${errorMessage}`);
-      };
-    }
-  }
-});
+// NO exportar supabase directamente - usar solo las funciones exportadas
+// Esto previene que se intente acceder a supabase antes de que esté configurado
+// Si necesitas acceder a supabase directamente, usa getSupabaseClient() (pero es async)
 
 export type OAuthProvider = 'google' | 'github' | 'apple';
 
@@ -86,7 +54,7 @@ export async function signInWithOAuth(provider: OAuthProvider) {
     throw new Error('OAuth no está configurado. Por favor, contacta al administrador o usa el registro con email y contraseña.');
   }
   
-  const client = getSupabaseClient();
+  const client = await getSupabaseClient();
   const redirectUrl = `${window.location.origin}/auth/callback`;
   
   const { data, error } = await client.auth.signInWithOAuth({
@@ -107,7 +75,7 @@ export async function signOut() {
   if (!isSupabaseConfigured) {
     return; // No hacer nada si Supabase no está configurado
   }
-  const client = getSupabaseClient();
+  const client = await getSupabaseClient();
   const { error } = await client.auth.signOut();
   if (error) {
     throw error;
@@ -118,7 +86,7 @@ export async function getSession() {
   if (!isSupabaseConfigured) {
     return null; // Retornar null si Supabase no está configurado
   }
-  const client = getSupabaseClient();
+  const client = await getSupabaseClient();
   const { data: { session }, error } = await client.auth.getSession();
   if (error) {
     throw error;
@@ -130,7 +98,7 @@ export async function getUser() {
   if (!isSupabaseConfigured) {
     return null; // Retornar null si Supabase no está configurado
   }
-  const client = getSupabaseClient();
+  const client = await getSupabaseClient();
   const { data: { user }, error } = await client.auth.getUser();
   if (error) {
     throw error;
