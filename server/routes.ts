@@ -1209,25 +1209,55 @@ export async function registerRoutes(
     res.setHeader('Content-Type', 'application/json');
     
     try {
-      // Verificar que storage esté disponible
-      if (!storage) {
-        throw new Error("Storage no está inicializado");
-      }
+      console.log('[Contact] ========== CONTACT FORM SUBMISSION ==========');
+      console.log('[Contact] Request body:', JSON.stringify(req.body, null, 2));
       
-      // Verificar conexión a la base de datos antes de continuar
-      try {
-        await db.execute(sql`SELECT 1`);
-      } catch (dbError) {
-        console.error("[Contact] Database connection error:", dbError);
-        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+      // Verificar variables de entorno críticas
+      const hasDatabaseUrl = !!process.env.DATABASE_URL;
+      const hasSessionSecret = !!process.env.SESSION_SECRET;
+      
+      console.log('[Contact] Environment check:', {
+        hasDatabaseUrl,
+        hasSessionSecret,
+        nodeEnv: process.env.NODE_ENV,
+        vercel: !!process.env.VERCEL,
+      });
+      
+      if (!hasDatabaseUrl) {
+        console.error('[Contact] DATABASE_URL is missing!');
         res.status(503).json({ 
-          message: `No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.` 
+          message: "Error de configuración del servidor. Por favor, contacta al administrador.",
+          error: "DATABASE_URL no está configurada"
         });
         return;
       }
       
+      // Verificar que storage esté disponible
+      if (!storage) {
+        console.error('[Contact] Storage is not initialized!');
+        throw new Error("Storage no está inicializado");
+      }
+      
+      // Verificar conexión a la base de datos antes de continuar
+      console.log('[Contact] Testing database connection...');
+      try {
+        await db.execute(sql`SELECT 1`);
+        console.log('[Contact] Database connection: OK');
+      } catch (dbError) {
+        console.error('[Contact] Database connection error:', dbError);
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        res.status(503).json({ 
+          message: "Error de conexión a la base de datos. Por favor, inténtalo más tarde.",
+          error: process.env.NODE_ENV !== 'production' ? `Database error: ${errorMessage}` : undefined
+        });
+        return;
+      }
+      
+      // Validar datos de entrada
+      console.log('[Contact] Validating input data...');
       const result = insertContactSubmissionSchema.safeParse(req.body);
       if (!result.success) {
+        console.error('[Contact] Validation failed:', result.error.errors);
         res.status(400).json({ 
           message: "Datos inválidos", 
           errors: result.error.errors.map(e => ({
@@ -1237,27 +1267,37 @@ export async function registerRoutes(
         });
         return;
       }
+      console.log('[Contact] Validation: OK');
 
+      // Crear el contacto en la base de datos
+      console.log('[Contact] Creating contact submission...');
       const contact = await storage.createContactSubmission(result.data);
+      console.log('[Contact] Contact submission created:', { id: contact.id, email: contact.email });
       
       // Notificar al administrador (no bloquea la respuesta si falla)
+      console.log('[Contact] Sending notification email...');
       sendContactFormNotification({
         name: contact.name,
         email: contact.email,
         phone: contact.phone || undefined,
         message: contact.message,
         service: contact.service || undefined,
+      }).then(() => {
+        console.log('[Contact] Notification email sent successfully');
       }).catch((emailError) => {
-        console.error("[Contact] Error sending notification email:", emailError);
-        // No fallar el request si el email falla
+        console.error('[Contact] Error sending notification email:', emailError);
+        // No fallar el request si el email falla - el contacto ya está guardado
       });
 
+      console.log('[Contact] ========== SUCCESS ==========');
       res.json({ success: true, contact });
     } catch (error) {
-      console.error("[Contact] Error en formulario de contacto:", error);
+      console.error('[Contact] ========== ERROR ==========');
+      console.error('[Contact] Error en formulario de contacto:', error);
+      console.error('[Contact] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({ 
-        message: "Error al enviar formulario",
+        message: "Error al enviar formulario. Por favor, inténtalo más tarde.",
         error: process.env.NODE_ENV !== 'production' ? errorMessage : undefined
       });
     }

@@ -85508,21 +85508,45 @@ async function registerRoutes(httpServer2, app3) {
   app3.post("/api/contact", contactLimiter, async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     try {
+      console.log("[Contact] ========== CONTACT FORM SUBMISSION ==========");
+      console.log("[Contact] Request body:", JSON.stringify(req.body, null, 2));
+      const hasDatabaseUrl = !!process.env.DATABASE_URL;
+      const hasSessionSecret = !!process.env.SESSION_SECRET;
+      console.log("[Contact] Environment check:", {
+        hasDatabaseUrl,
+        hasSessionSecret,
+        nodeEnv: "production",
+        vercel: !!process.env.VERCEL
+      });
+      if (!hasDatabaseUrl) {
+        console.error("[Contact] DATABASE_URL is missing!");
+        res.status(503).json({
+          message: "Error de configuraci\xF3n del servidor. Por favor, contacta al administrador.",
+          error: "DATABASE_URL no est\xE1 configurada"
+        });
+        return;
+      }
       if (!storage) {
+        console.error("[Contact] Storage is not initialized!");
         throw new Error("Storage no est\xE1 inicializado");
       }
+      console.log("[Contact] Testing database connection...");
       try {
         await db.execute(sql`SELECT 1`);
+        console.log("[Contact] Database connection: OK");
       } catch (dbError) {
         console.error("[Contact] Database connection error:", dbError);
         const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
         res.status(503).json({
-          message: `No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.`
+          message: "Error de conexi\xF3n a la base de datos. Por favor, int\xE9ntalo m\xE1s tarde.",
+          error: false ? `Database error: ${errorMessage}` : void 0
         });
         return;
       }
+      console.log("[Contact] Validating input data...");
       const result = insertContactSubmissionSchema.safeParse(req.body);
       if (!result.success) {
+        console.error("[Contact] Validation failed:", result.error.errors);
         res.status(400).json({
           message: "Datos inv\xE1lidos",
           errors: result.error.errors.map((e3) => ({
@@ -85532,22 +85556,31 @@ async function registerRoutes(httpServer2, app3) {
         });
         return;
       }
+      console.log("[Contact] Validation: OK");
+      console.log("[Contact] Creating contact submission...");
       const contact = await storage.createContactSubmission(result.data);
+      console.log("[Contact] Contact submission created:", { id: contact.id, email: contact.email });
+      console.log("[Contact] Sending notification email...");
       sendContactFormNotification({
         name: contact.name,
         email: contact.email,
         phone: contact.phone || void 0,
         message: contact.message,
         service: contact.service || void 0
+      }).then(() => {
+        console.log("[Contact] Notification email sent successfully");
       }).catch((emailError) => {
         console.error("[Contact] Error sending notification email:", emailError);
       });
+      console.log("[Contact] ========== SUCCESS ==========");
       res.json({ success: true, contact });
     } catch (error) {
+      console.error("[Contact] ========== ERROR ==========");
       console.error("[Contact] Error en formulario de contacto:", error);
+      console.error("[Contact] Error stack:", error instanceof Error ? error.stack : "No stack trace");
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(500).json({
-        message: "Error al enviar formulario",
+        message: "Error al enviar formulario. Por favor, int\xE9ntalo m\xE1s tarde.",
         error: false ? errorMessage : void 0
       });
     }
