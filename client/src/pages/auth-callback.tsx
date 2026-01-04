@@ -38,15 +38,12 @@ export default function AuthCallback() {
           providerId: session.user.id,
         });
 
-          toast({
-            title: "Welcome!",
-            description: "You have successfully logged in.",
-          });
+        toast({
+          title: "Welcome!",
+          description: "You have successfully logged in.",
+        });
 
-          // NO redirigir aquí - el useEffect de arriba se encargará según el rol
-        } else {
-          throw new Error("No session found");
-        }
+        // NO redirigir aquí - el useEffect de arriba se encargará según el rol
       } catch (err) {
         console.error("OAuth callback error:", err);
         setError(err instanceof Error ? err.message : "Authentication failed");
