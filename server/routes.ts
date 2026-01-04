@@ -667,33 +667,50 @@ export async function registerRoutes(
    */
   app.get("/api/health", async (_req: Request, res: Response) => {
     try {
+      const health = {
+        status: "ok" as string,
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || "unknown",
+        variables: {
+          hasDatabaseUrl: !!process.env.DATABASE_URL,
+          hasSessionSecret: !!process.env.SESSION_SECRET,
+          hasResendApiKey: !!process.env.RESEND_API_KEY,
+          hasViteAppUrl: !!process.env.VITE_APP_URL,
+        },
+        database: "unknown" as string,
+        error: undefined as string | undefined,
+      };
+
       // Verificar que DATABASE_URL esté configurada
       if (!process.env.DATABASE_URL) {
-        res.status(503).json({
-          status: "error",
-          timestamp: new Date().toISOString(),
-          database: "not_configured",
-          error: "DATABASE_URL no está configurada en las variables de entorno"
-        });
+        health.status = "error";
+        health.database = "not_configured";
+        health.error = "DATABASE_URL no está configurada en las variables de entorno";
+        res.status(503).json(health);
         return;
       }
 
       // Verificar conexión a la base de datos
-      await db.execute(sql`SELECT 1`);
+      try {
+        await db.execute(sql`SELECT 1`);
+        health.database = "connected";
+      } catch (dbError) {
+        health.status = "error";
+        health.database = "disconnected";
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        health.error = process.env.NODE_ENV !== 'production' ? errorMessage : "Database connection failed";
+        res.status(503).json(health);
+        return;
+      }
       
-      res.json({
-        status: "ok",
-        timestamp: new Date().toISOString(),
-        database: "connected",
-        environment: process.env.NODE_ENV || "unknown"
-      });
+      res.json(health);
     } catch (error) {
-      console.error("[Health] Database check failed:", error);
+      console.error("[Health] Health check failed:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(503).json({
         status: "error",
         timestamp: new Date().toISOString(),
-        database: "disconnected",
+        database: "unknown",
         error: process.env.NODE_ENV !== 'production' ? errorMessage : undefined
       });
     }

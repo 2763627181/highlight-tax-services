@@ -85210,29 +85210,45 @@ async function registerRoutes(httpServer2, app3) {
   });
   app3.get("/api/health", async (_req, res) => {
     try {
-      if (!process.env.DATABASE_URL) {
-        res.status(503).json({
-          status: "error",
-          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-          database: "not_configured",
-          error: "DATABASE_URL no est\xE1 configurada en las variables de entorno"
-        });
-        return;
-      }
-      await db.execute(sql`SELECT 1`);
-      res.json({
+      const health = {
         status: "ok",
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        database: "connected",
-        environment: "production"
-      });
+        environment: "production",
+        variables: {
+          hasDatabaseUrl: !!process.env.DATABASE_URL,
+          hasSessionSecret: !!process.env.SESSION_SECRET,
+          hasResendApiKey: !!process.env.RESEND_API_KEY,
+          hasViteAppUrl: !!process.env.VITE_APP_URL
+        },
+        database: "unknown",
+        error: void 0
+      };
+      if (!process.env.DATABASE_URL) {
+        health.status = "error";
+        health.database = "not_configured";
+        health.error = "DATABASE_URL no est\xE1 configurada en las variables de entorno";
+        res.status(503).json(health);
+        return;
+      }
+      try {
+        await db.execute(sql`SELECT 1`);
+        health.database = "connected";
+      } catch (dbError) {
+        health.status = "error";
+        health.database = "disconnected";
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        health.error = false ? errorMessage : "Database connection failed";
+        res.status(503).json(health);
+        return;
+      }
+      res.json(health);
     } catch (error) {
-      console.error("[Health] Database check failed:", error);
+      console.error("[Health] Health check failed:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       res.status(503).json({
         status: "error",
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-        database: "disconnected",
+        database: "unknown",
         error: false ? errorMessage : void 0
       });
     }
