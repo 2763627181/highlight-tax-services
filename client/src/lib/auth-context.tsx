@@ -264,8 +264,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { isConnected: wsConnected } = useWebSocket(wsToken);
 
   /** Verificar autenticación al montar el componente */
+  /** Deferir verificación de auth para no bloquear renderizado inicial */
   useEffect(() => {
-    checkAuth();
+    // Usar requestIdleCallback si está disponible para deferir fuera de la ruta crítica
+    // Esto mejora el LCP (Largest Contentful Paint) al no bloquear el renderizado inicial
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => {
+        checkAuth();
+      }, { timeout: 2000 });
+    } else {
+      // Fallback para navegadores sin requestIdleCallback
+      // Usar setTimeout con delay mínimo para permitir que el navegador renderice primero
+      setTimeout(() => {
+        checkAuth();
+      }, 100);
+    }
   }, [checkAuth]);
 
   /**
