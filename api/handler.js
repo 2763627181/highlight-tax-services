@@ -85506,10 +85506,30 @@ async function registerRoutes(httpServer2, app3) {
     }
   });
   app3.post("/api/contact", contactLimiter, async (req, res) => {
+    res.setHeader("Content-Type", "application/json");
     try {
+      if (!storage) {
+        throw new Error("Storage no est\xE1 inicializado");
+      }
+      try {
+        await db.execute(sql`SELECT 1`);
+      } catch (dbError) {
+        console.error("[Contact] Database connection error:", dbError);
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        res.status(503).json({
+          message: `No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.`
+        });
+        return;
+      }
       const result = insertContactSubmissionSchema.safeParse(req.body);
       if (!result.success) {
-        res.status(400).json({ message: "Datos inv\xE1lidos", errors: result.error.errors });
+        res.status(400).json({
+          message: "Datos inv\xE1lidos",
+          errors: result.error.errors.map((e3) => ({
+            path: e3.path.join("."),
+            message: e3.message
+          }))
+        });
         return;
       }
       const contact = await storage.createContactSubmission(result.data);
@@ -85519,11 +85539,17 @@ async function registerRoutes(httpServer2, app3) {
         phone: contact.phone || void 0,
         message: contact.message,
         service: contact.service || void 0
-      }).catch(console.error);
+      }).catch((emailError) => {
+        console.error("[Contact] Error sending notification email:", emailError);
+      });
       res.json({ success: true, contact });
     } catch (error) {
-      console.error("Error en formulario de contacto:", error);
-      res.status(500).json({ message: "Error al enviar formulario" });
+      console.error("[Contact] Error en formulario de contacto:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({
+        message: "Error al enviar formulario",
+        error: false ? errorMessage : void 0
+      });
     }
   });
   app3.get("/api/cases", authenticateToken, async (req, res) => {

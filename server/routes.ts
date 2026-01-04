@@ -1205,28 +1205,61 @@ export async function registerRoutes(
    * @sideeffects Envía notificación por email a admin
    */
   app.post("/api/contact", contactLimiter, async (req: Request, res: Response) => {
+    // Asegurar que siempre devolvamos JSON
+    res.setHeader('Content-Type', 'application/json');
+    
     try {
+      // Verificar que storage esté disponible
+      if (!storage) {
+        throw new Error("Storage no está inicializado");
+      }
+      
+      // Verificar conexión a la base de datos antes de continuar
+      try {
+        await db.execute(sql`SELECT 1`);
+      } catch (dbError) {
+        console.error("[Contact] Database connection error:", dbError);
+        const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
+        res.status(503).json({ 
+          message: `No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.` 
+        });
+        return;
+      }
+      
       const result = insertContactSubmissionSchema.safeParse(req.body);
       if (!result.success) {
-        res.status(400).json({ message: "Datos inválidos", errors: result.error.errors });
+        res.status(400).json({ 
+          message: "Datos inválidos", 
+          errors: result.error.errors.map(e => ({
+            path: e.path.join('.'),
+            message: e.message
+          }))
+        });
         return;
       }
 
       const contact = await storage.createContactSubmission(result.data);
       
-      // Notificar al administrador
+      // Notificar al administrador (no bloquea la respuesta si falla)
       sendContactFormNotification({
         name: contact.name,
         email: contact.email,
         phone: contact.phone || undefined,
         message: contact.message,
         service: contact.service || undefined,
-      }).catch(console.error);
+      }).catch((emailError) => {
+        console.error("[Contact] Error sending notification email:", emailError);
+        // No fallar el request si el email falla
+      });
 
       res.json({ success: true, contact });
     } catch (error) {
-      console.error("Error en formulario de contacto:", error);
-      res.status(500).json({ message: "Error al enviar formulario" });
+      console.error("[Contact] Error en formulario de contacto:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        message: "Error al enviar formulario",
+        error: process.env.NODE_ENV !== 'production' ? errorMessage : undefined
+      });
     }
   });
 
