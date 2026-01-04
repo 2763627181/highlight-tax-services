@@ -513,6 +513,14 @@ export default function Portal() {
   const handleOAuthLogin = async (provider: OAuthProvider) => {
     setIsOAuthLoading(true);
     try {
+      // Verificar que Supabase esté configurado antes de intentar OAuth
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('OAuth no está configurado. Por favor, usa el registro con email y contraseña.');
+      }
+      
       await signInWithOAuth(provider);
     } catch (error) {
       toast({

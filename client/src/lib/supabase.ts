@@ -1,5 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// NO inicializar nada al importar el módulo
+// Solo leer las variables de entorno, pero NO crear el cliente todavía
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
@@ -25,18 +27,55 @@ function getSupabaseClient(): SupabaseClient {
   }
   
   if (!supabaseInstance) {
-    supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+    try {
+      supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+    } catch (error) {
+      console.error('[Supabase] Error creating client:', error);
+      throw new Error('No se pudo inicializar Supabase. Verifica las variables de entorno.');
+    }
   }
   
   return supabaseInstance;
 }
 
-// Exportar una función que retorna el cliente solo si está configurado
+// Exportar un Proxy que SOLO se ejecuta cuando se accede a una propiedad
+// Esto previene la inicialización temprana de Supabase
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
-    const client = getSupabaseClient();
-    const value = (client as any)[prop];
-    return typeof value === 'function' ? value.bind(client) : value;
+    // Si no está configurado, retornar objetos/funciones que lanzan errores claros
+    if (!isSupabaseConfigured) {
+      // Para 'auth', retornar un Proxy que lanza error solo cuando se usa
+      if (prop === 'auth') {
+        return new Proxy({} as any, {
+          get(_authTarget, authProp) {
+            throw new Error('Supabase no está configurado. OAuth no está disponible. Configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.');
+          }
+        });
+      }
+      // Para cualquier otra propiedad, retornar función que lanza error
+      if (typeof prop === 'string') {
+        return () => {
+          throw new Error(`Supabase no está configurado. La propiedad '${prop}' no está disponible.`);
+        };
+      }
+      return undefined;
+    }
+    
+    // Si está configurado, obtener el cliente y retornar la propiedad
+    try {
+      const client = getSupabaseClient();
+      const value = (client as any)[prop];
+      if (typeof value === 'function') {
+        return value.bind(client);
+      }
+      return value;
+    } catch (error) {
+      // Si hay error, retornar función que lanza el error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return () => {
+        throw new Error(`Error accediendo a Supabase: ${errorMessage}`);
+      };
+    }
   }
 });
 
