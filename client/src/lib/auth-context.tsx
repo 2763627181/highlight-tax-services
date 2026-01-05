@@ -37,7 +37,7 @@
  * - Estado limpiado completamente al logout
  */
 
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { User } from "@shared/schema";
 import { useWebSocket } from "@/hooks/use-websocket";
 
@@ -201,6 +201,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   /** Token JWT para conexión WebSocket */
   const [wsToken, setWsToken] = useState<string | null>(null);
+  /** Flag para evitar múltiples llamadas simultáneas a checkAuth */
+  const checkingAuthRef = useRef(false);
+  /** Timestamp de la última verificación exitosa */
+  const lastCheckRef = useRef<number>(0);
+  /** Cache de 30 segundos para evitar requests innecesarios */
+  const AUTH_CACHE_MS = 30000;
 
   /**
    * Obtiene un token JWT para la conexión WebSocket
@@ -232,41 +238,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Se ejecuta automáticamente al cargar la aplicación.
    * Si hay sesión válida, obtiene datos del usuario y token WS.
    * 
+   * @performance Optimizado para producción:
+   * - Evita múltiples llamadas simultáneas
+   * - Respeta caché de 30 segundos
+   * - Timeout de 5 segundos para no bloquear UI
+   * 
    * @security Usa cookies HttpOnly, no expone tokens en localStorage
    */
   const checkAuth = useCallback(async () => {
+    // Evitar múltiples llamadas simultáneas
+    if (checkingAuthRef.current) {
+      return;
+    }
+
+    // Verificar caché (última verificación exitosa hace menos de 30 segundos)
+    const now = Date.now();
+    if (lastCheckRef.current > 0 && (now - lastCheckRef.current) < AUTH_CACHE_MS) {
+      setIsLoading(false);
+      return;
+    }
+
+    checkingAuthRef.current = true;
+    
     try {
+      // Timeout de 5 segundos para evitar que bloquee la UI en producción
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const response = await fetch("/api/auth/me", {
         credentials: "include",
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
+
       if (response.ok) {
         const result = await safeJsonParse(response);
         if (result.data && result.data.user) {
           setUser(result.data.user);
-          fetchWsToken();
+          lastCheckRef.current = now;
+          // Obtener token WS de forma asíncrona sin bloquear
+          fetchWsToken().catch(console.error);
         } else {
           setUser(null);
           setWsToken(null);
+          lastCheckRef.current = 0;
         }
       } else {
         setUser(null);
         setWsToken(null);
+        lastCheckRef.current = 0;
       }
     } catch (error) {
-      setUser(null);
-      setWsToken(null);
+      // En caso de error de red, no resetear el usuario si ya estaba autenticado
+      // Esto evita que se pierda la sesión por problemas temporales de red
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn("Auth check timeout - using cached state if available");
+      } else {
+        console.error("Auth check error:", error);
+        // Solo resetear si no hay usuario (primera carga)
+        if (!user) {
+          setUser(null);
+          setWsToken(null);
+        }
+      }
+      lastCheckRef.current = 0;
     } finally {
       setIsLoading(false);
+      checkingAuthRef.current = false;
     }
-  }, [fetchWsToken]);
+  }, [fetchWsToken, user]);
 
   /** Hook de WebSocket para notificaciones en tiempo real */
   const { isConnected: wsConnected } = useWebSocket(wsToken);
 
-  /** Verificar autenticación al montar el componente */
+  /** Verificar autenticación al montar el componente (solo una vez) */
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo ejecutar una vez al montar
 
   /**
    * Inicia sesión con email y contraseña

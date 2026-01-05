@@ -919,9 +919,19 @@ export async function registerRoutes(
    * 
    * @requires authenticateToken
    * @returns {object} Datos del usuario sin información sensible
+   * 
+   * @performance Optimizado para producción:
+   * - Headers de caché para reducir requests
+   * - Respuesta rápida sin consultas a BD (usa JWT)
    */
   app.get("/api/auth/me", authenticateToken, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
+    
+    // Headers de caché para optimizar en producción
+    // Cache por 30 segundos para reducir latencia en Vercel
+    res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    
     res.json({ user: authReq.user });
   });
 
