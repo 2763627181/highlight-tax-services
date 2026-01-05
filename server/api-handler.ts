@@ -10,18 +10,23 @@ let initError: Error | null = null;
 async function handlerFn(req: any, res: any) {
   // Log de inicio de petición para debugging en Vercel
   const startTime = Date.now();
-  const path = req.path || req.url || '';
+  
+  // En Vercel, cuando usamos rewrites, el path original se mantiene en req.url
+  // pero req.path puede ser diferente. Necesitamos verificar ambos
+  const originalUrl = req.url || '';
+  const path = req.path || originalUrl;
+  const fullPath = originalUrl.startsWith('/') ? originalUrl : `/${originalUrl}`;
   
   // FILTRO CRÍTICO: Rechazar inmediatamente rutas no-API
-  // Esto previene timeouts y carga innecesaria
-  if (!path.startsWith('/api/')) {
-    console.log(`[API] Rejecting non-API route immediately: ${req.method} ${path}`);
+  // En Vercel, todas las rutas que llegan aquí deberían ser /api/* debido al rewrite
+  // Pero verificamos por si acaso
+  if (!fullPath.startsWith('/api/') && !path.startsWith('/api/')) {
+    console.log(`[API] Rejecting non-API route immediately: ${req.method} ${fullPath} (path: ${path})`);
     // NO responder - dejar que Vercel maneje la ruta automáticamente
-    // Si respondemos aquí, interferimos con el servido automático de Vercel
     return;
   }
 
-  console.log(`[API] Request started: ${req.method} ${path} at ${new Date().toISOString()}`);
+  console.log(`[API] Request started: ${req.method} ${fullPath} (path: ${path}) at ${new Date().toISOString()}`);
 
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
@@ -177,8 +182,8 @@ async function handlerFn(req: any, res: any) {
     const result = await Promise.race([handlerPromise, timeoutPromise]);
     
     const duration = Date.now() - startTime;
-    const path = req.path || req.url || '';
-    console.log(`[API] Request completed: ${req.method} ${path} in ${duration}ms`);
+    const finalPath = req.path || req.url || fullPath;
+    console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
     
     // Asegurar que la respuesta se haya enviado
     // SOLO para rutas API (las no-API ya fueron rechazadas al inicio)
