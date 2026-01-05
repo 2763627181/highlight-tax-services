@@ -145,21 +145,42 @@ async function handlerFn(req: any, res: any) {
     }
   }
   
-  // Ejecutar el handler
+  // Ejecutar el handler con timeout para evitar que se cuelgue
   try {
     if (!handler) {
       throw new Error('Handler no está inicializado');
     }
     
-    const result = await handler(req, res);
+    // Timeout de 55 segundos (menos que el maxDuration de 60s para dar margen)
+    const handlerTimeout = 55000;
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`Handler timeout after ${handlerTimeout}ms`));
+      }, handlerTimeout);
+    });
+
+    const handlerPromise = handler(req, res);
+    
+    // Race entre el handler y el timeout
+    const result = await Promise.race([handlerPromise, timeoutPromise]);
+    
     const duration = Date.now() - startTime;
     console.log(`[API] Request completed: ${req.method} ${req.path || req.url} in ${duration}ms`);
+    
+    // Asegurar que la respuesta se haya enviado
+    if (!res.headersSent && !res.writableEnded) {
+      console.warn('[API] Warning: Response not sent, sending default response');
+      res.status(200).json({ message: 'OK' });
+    }
+    
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error(`[API] Error in handler execution after ${duration}ms:`, error);
     const err = error as Error;
-    if (!res.headersSent) {
+    
+    // Asegurar que siempre se envíe una respuesta
+    if (!res.headersSent && !res.writableEnded) {
       // @ts-ignore - process está disponible en runtime
       const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
       res.status(500).json({ 

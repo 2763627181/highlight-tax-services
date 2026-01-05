@@ -1075,14 +1075,27 @@ export async function registerRoutes(
    * - Respuesta rápida sin consultas a BD (usa JWT)
    */
   app.get("/api/auth/me", authenticateToken, async (req: Request, res: Response) => {
-    const authReq = req as AuthRequest;
-    
-    // Headers de caché para optimizar en producción
-    // Cache por 30 segundos para reducir latencia en Vercel
-    res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    
-    res.json({ user: authReq.user });
+    try {
+      const authReq = req as AuthRequest;
+      
+      // Headers de caché para optimizar en producción
+      // Cache por 30 segundos para reducir latencia en Vercel
+      res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      
+      // Asegurar que siempre se envíe una respuesta
+      if (!res.headersSent) {
+        res.json({ user: authReq.user });
+      }
+    } catch (error) {
+      console.error('[Routes] Error in /api/auth/me:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          message: 'Error al obtener información del usuario',
+          error: process.env.NODE_ENV !== 'production' ? (error as Error).message : undefined
+        });
+      }
+    }
   });
 
   /**
