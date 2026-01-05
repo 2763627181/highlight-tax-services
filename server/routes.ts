@@ -1009,13 +1009,18 @@ export async function registerRoutes(
    */
   app.post("/api/auth/login", finalAuthLimiter, async (req: Request, res: Response) => {
     try {
+      // Asegurar que siempre devolvamos JSON
+      res.setHeader('Content-Type', 'application/json');
+      
       // Validar datos de entrada
       const result = loginSchema.safeParse(req.body);
       if (!result.success) {
-        res.status(400).json({ 
-          message: "Validación fallida", 
-          errors: result.error.errors.map(e => e.message)
-        });
+        if (!res.headersSent) {
+          res.status(400).json({ 
+            message: "Validación fallida", 
+            errors: result.error.errors.map(e => e.message)
+          });
+        }
         return;
       }
 
@@ -1025,23 +1030,32 @@ export async function registerRoutes(
       const user = await storage.getUserByEmail(email);
       if (!user) {
         // Respuesta genérica para no revelar si el email existe
-        res.status(401).json({ message: "Credenciales inválidas" });
+        if (!res.headersSent) {
+          res.status(401).json({ message: "Credenciales inválidas" });
+        }
         return;
       }
 
       // Verificar contraseña
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {
-        res.status(401).json({ message: "Credenciales inválidas" });
+        if (!res.headersSent) {
+          res.status(401).json({ message: "Credenciales inválidas" });
+        }
         return;
       }
 
-      // Registrar actividad
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "user_login",
-        details: `Usuario inició sesión: ${email}`,
-      });
+      // Registrar actividad (no bloquear si falla)
+      try {
+        await storage.createActivityLog({
+          userId: user.id,
+          action: "user_login",
+          details: `Usuario inició sesión: ${email}`,
+        });
+      } catch (activityError) {
+        console.warn('[Routes] Error logging activity (non-critical):', activityError);
+        // Continuar aunque falle el log de actividad
+      }
 
       // Generar token JWT
       const token = jwt.sign(
@@ -1053,12 +1067,20 @@ export async function registerRoutes(
       // Establecer cookie segura
       res.cookie("token", token, COOKIE_OPTIONS);
 
-      res.json({
-        user: { id: user.id, email: user.email, role: user.role, name: user.name },
-      });
+      // Asegurar que la respuesta se envíe correctamente
+      if (!res.headersSent) {
+        res.json({
+          user: { id: user.id, email: user.email, role: user.role, name: user.name },
+        });
+      }
     } catch (error) {
       console.error("Error de login:", error);
-      res.status(500).json({ message: "Error al iniciar sesión" });
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          message: "Error al iniciar sesión",
+          error: process.env.NODE_ENV !== 'production' ? (error as Error).message : undefined
+        });
+      }
     }
   });
 

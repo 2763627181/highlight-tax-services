@@ -39,16 +39,39 @@ export function serveStatic(app: Express) {
   }
 
   console.log('[Static] Serving static files from:', distPath);
-  app.use(express.static(distPath));
+  
+  // Servir archivos estáticos SOLO para rutas que NO sean API
+  app.use((req, res, next) => {
+    // Si es una ruta API, saltar el middleware de archivos estáticos
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    // Continuar con express.static para rutas no-API
+    express.static(distPath)(req, res, next);
+  });
 
   // fall through to index.html if the file doesn't exist (SPA routing)
-  app.use("*", (_req, res) => {
+  // PERO solo para rutas que NO sean API
+  app.use("*", (req, res) => {
+    // NO intentar servir index.html para rutas API
+    if (req.path.startsWith('/api/')) {
+      // Si llegamos aquí, es una ruta API no encontrada
+      // Esto no debería pasar porque las rutas API deberían estar manejadas antes
+      if (!res.headersSent) {
+        res.status(404).json({ message: "Ruta API no encontrada" });
+      }
+      return;
+    }
+    
+    // Para rutas no-API, intentar servir index.html (SPA routing)
     const indexPath = path.resolve(distPath!, "index.html");
     if (fs.existsSync(indexPath)) {
       res.sendFile(indexPath);
     } else {
       console.error('[Static] index.html not found at:', indexPath);
-      res.status(404).json({ error: "Frontend not built. Please run 'npm run build'" });
+      if (!res.headersSent) {
+        res.status(404).json({ error: "Frontend not built. Please run 'npm run build'" });
+      }
     }
   });
 }
