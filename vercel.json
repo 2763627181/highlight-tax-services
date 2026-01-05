@@ -5,5 +5,10 @@
   ],
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "outputDirectory": "dist/public"
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/handler.js": {
+      "maxDuration": 60
+    }
+  }
 }
