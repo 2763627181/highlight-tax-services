@@ -189,7 +189,7 @@ async function handlerFn(req: any, res: any) {
     const result = await Promise.race([handlerPromise, timeoutPromise]);
     
     const duration = Date.now() - startTime;
-    const finalPath = req.path || req.url || normalizedPath;
+    const finalPath = req.path || req.url || path;
     console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
     
     // Asegurar que la respuesta se haya enviado
