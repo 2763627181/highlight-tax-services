@@ -241,7 +241,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * @performance Optimizado para producción:
    * - Evita múltiples llamadas simultáneas
    * - Respeta caché de 30 segundos
-   * - Timeout de 5 segundos para no bloquear UI
+   * - Timeout de 20 segundos (suficiente para cold starts en Vercel)
    * 
    * @security Usa cookies HttpOnly, no expone tokens en localStorage
    */
@@ -261,9 +261,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkingAuthRef.current = true;
     
     try {
-      // Timeout de 5 segundos para evitar que bloquee la UI en producción
+      // Timeout de 20 segundos para producción (cold starts en Vercel pueden tardar)
+      // Usar FETCH_TIMEOUT (30s) pero con un límite más conservador para auth check
+      const AUTH_CHECK_TIMEOUT = 20000; // 20 segundos
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), AUTH_CHECK_TIMEOUT);
 
       const response = await fetch("/api/auth/me", {
         credentials: "include",
@@ -290,10 +292,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         lastCheckRef.current = 0;
       }
     } catch (error) {
-      // En caso de error de red, no resetear el usuario si ya estaba autenticado
-      // Esto evita que se pierda la sesión por problemas temporales de red
+      // En caso de error de red o timeout, no resetear el usuario si ya estaba autenticado
+      // Esto evita que se pierda la sesión por problemas temporales de red o cold starts
       if (error instanceof Error && error.name === 'AbortError') {
         console.warn("Auth check timeout - using cached state if available");
+        // Si hay un usuario en caché, mantenerlo (podría ser un cold start lento)
+        if (user) {
+          console.log("Maintaining cached user state despite timeout");
+          lastCheckRef.current = now; // Actualizar timestamp para evitar reintentos inmediatos
+        }
       } else {
         console.error("Auth check error:", error);
         // Solo resetear si no hay usuario (primera carga)
@@ -302,7 +309,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setWsToken(null);
         }
       }
-      lastCheckRef.current = 0;
+      // No resetear lastCheckRef si hay timeout y hay usuario (podría ser temporal)
+      if (!(error instanceof Error && error.name === 'AbortError' && user)) {
+        lastCheckRef.current = 0;
+      }
     } finally {
       setIsLoading(false);
       checkingAuthRef.current = false;
