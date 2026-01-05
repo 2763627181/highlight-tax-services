@@ -6,11 +6,16 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/handler"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/$1"
     }
   ],
   "functions": {
     "api/handler.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "dist/public/**"
     }
   }
 }

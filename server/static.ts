@@ -22,20 +22,25 @@ function getCurrentDir(): string {
 function findStaticDir(): string | null {
   const currentDir = getCurrentDir();
   const possiblePaths = [
+    // Archivos copiados por el build script a api/public
+    path.resolve(currentDir, "public"),
     // Vercel Lambda runtime
     path.resolve("/var/task", "dist", "public"),
+    path.resolve("/var/task", "public"),
     // Desde el directorio del handler (api/)
     path.resolve(currentDir, "..", "dist", "public"),
+    path.resolve(currentDir, "..", "public"),
     // Desde el directorio del handler (api/) - alternativa
     path.resolve(currentDir, "..", "..", "dist", "public"),
+    path.resolve(currentDir, "..", "..", "public"),
     // Desde el working directory
     path.resolve(process.cwd(), "dist", "public"),
+    path.resolve(process.cwd(), "public"),
     // Desde el directorio actual
     path.resolve(".", "dist", "public"),
-    // Vercel build output (cuando se copia a la función)
-    path.resolve("/var/task", "public"),
-    // Alternativa para Vercel
-    path.resolve(process.cwd(), "public"),
+    path.resolve(".", "public"),
+    // Vercel puede copiar a diferentes ubicaciones
+    path.resolve("/var/task", "..", "dist", "public"),
   ];
 
   console.log('[Static] Searching for static files in:', possiblePaths);
