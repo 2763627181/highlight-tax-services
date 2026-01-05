@@ -176,20 +176,22 @@ async function handlerFn(req: any, res: any) {
         console.warn('[API] Warning: API route response not sent, sending default response');
         res.status(200).json({ message: 'OK' });
       } else {
-        // Para rutas no-API (frontend), verificar si static.ts ya manejó la respuesta
-        // Si no se envió respuesta, puede ser que static.ts no encontró el archivo
-        // En ese caso, intentar servir index.html manualmente
-        console.warn('[API] Warning: Non-API route response not sent:', path);
-        console.log('[API] Attempting to serve index.html for SPA route');
+        // Para rutas no-API, esto no debería pasar en Vercel
+        // porque Vercel debería servir los archivos estáticos automáticamente
+        // Si llegamos aquí, es un error de configuración
+        console.error('[API] ERROR: Non-API route reached handler without response:', path);
+        console.error('[API] This should not happen in Vercel. Check vercel.json configuration.');
         
-        // Intentar servir index.html para SPA routing
+        // Intentar servir index.html como último recurso
         try {
           const fs = await import('fs');
           const pathModule = await import('path');
           const possiblePaths = [
-            pathModule.resolve(process.cwd(), 'dist', 'public', 'index.html'),
-            pathModule.resolve(process.cwd(), '..', 'dist', 'public', 'index.html'),
             pathModule.resolve('/var/task', 'dist', 'public', 'index.html'),
+            pathModule.resolve('/var/task', 'public', 'index.html'),
+            pathModule.resolve(process.cwd(), 'dist', 'public', 'index.html'),
+            pathModule.resolve(process.cwd(), 'public', 'index.html'),
+            pathModule.resolve(process.cwd(), '..', 'dist', 'public', 'index.html'),
           ];
           
           let indexPath: string | null = null;
@@ -201,15 +203,21 @@ async function handlerFn(req: any, res: any) {
           }
           
           if (indexPath) {
-            console.log('[API] Serving index.html from:', indexPath);
+            console.log('[API] Found index.html, serving as fallback:', indexPath);
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             const html = fs.readFileSync(indexPath, 'utf-8');
             res.send(html);
           } else {
             console.error('[API] index.html not found in any of these paths:', possiblePaths);
+            console.error('[API] Current working directory:', process.cwd());
             res.status(404).json({ 
               error: 'Frontend not found',
-              message: 'The frontend files were not found. Please ensure the build completed successfully.'
+              message: 'The frontend files were not found. Please ensure the build completed successfully.',
+              debug: {
+                cwd: process.cwd(),
+                pathsChecked: possiblePaths,
+                isVercel: !!process.env.VERCEL
+              }
             });
           }
         } catch (staticError) {
