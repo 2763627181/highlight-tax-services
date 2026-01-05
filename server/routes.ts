@@ -354,30 +354,48 @@ const multerStorage = multer.diskStorage({
  * - Tamaño máximo: 10MB
  * - Solo tipos MIME permitidos
  * - Solo extensiones permitidas
+ * 
+ * @throws Error si multerStorage no está definido
  */
-const upload = multer({
-  storage: multerStorage,
-  limits: { 
-    fileSize: MAX_FILE_SIZE,
-    files: 1 // Solo un archivo por petición
-  },
-  fileFilter: (_req, file, cb) => {
-    // Validar tipo MIME
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      cb(new Error("Tipo de archivo no permitido. Use PDF, JPG, PNG, DOC o DOCX."));
-      return;
-    }
-    
-    // Validar extensión
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      cb(new Error("Extensión de archivo no permitida."));
-      return;
-    }
-    
-    cb(null, true);
-  },
-});
+let upload: multer.Multer;
+try {
+  if (!multerStorage) {
+    throw new Error("multerStorage is not defined");
+  }
+  upload = multer({
+    storage: multerStorage,
+    limits: { 
+      fileSize: MAX_FILE_SIZE,
+      files: 1 // Solo un archivo por petición
+    },
+    fileFilter: (_req, file, cb) => {
+      // Validar tipo MIME
+      if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+        cb(new Error("Tipo de archivo no permitido. Use PDF, JPG, PNG, DOC o DOCX."));
+        return;
+      }
+      
+      // Validar extensión
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        cb(new Error("Extensión de archivo no permitida."));
+        return;
+      }
+      
+      cb(null, true);
+    },
+  });
+} catch (error) {
+  console.error('[Routes] Error initializing multer upload:', error);
+  // Crear un upload fallback que lanza error si se intenta usar
+  upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_FILE_SIZE },
+    fileFilter: (_req, _file, cb) => {
+      cb(new Error("File upload is not properly configured. Please contact support."));
+    },
+  });
+}
 
 // =============================================================================
 // TIPOS DE TYPESCRIPT
@@ -540,6 +558,39 @@ export async function registerRoutes(
 ): Promise<Server | undefined> {
   try {
     console.log('[Routes] Starting route registration...');
+    
+    // Validar que todos los middlewares estén definidos antes de registrar rutas
+    const requiredMiddlewares = {
+      authLimiter,
+      uploadLimiter,
+      contactLimiter,
+      messageLimiter,
+      authenticateToken,
+      requireAdmin,
+      upload,
+    };
+    
+    const missingMiddlewares: string[] = [];
+    for (const [name, middleware] of Object.entries(requiredMiddlewares)) {
+      if (!middleware) {
+        missingMiddlewares.push(name);
+      }
+    }
+    
+    if (missingMiddlewares.length > 0) {
+      const errorMsg = `Required middlewares are undefined: ${missingMiddlewares.join(', ')}. Cannot register routes.`;
+      console.error('[Routes]', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    // Validar que upload.single esté disponible
+    if (!upload || typeof upload.single !== 'function') {
+      const errorMsg = 'upload.single is not available. Multer upload middleware is not properly initialized.';
+      console.error('[Routes]', errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    console.log('[Routes] All middlewares validated successfully');
     
     // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
     if (httpServer && wsService) {
@@ -1398,11 +1449,33 @@ export async function registerRoutes(
    * - Notifica a admin por email
    * - Envía notificación WebSocket
    */
+  // Validar que upload.single esté disponible antes de usarlo
+  if (!upload || typeof upload.single !== 'function') {
+    const errorMsg = "upload.single is not available. Cannot register /api/documents/upload route.";
+    console.error('[Routes]', errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  const uploadSingle = upload.single("file");
+  if (!uploadSingle || typeof uploadSingle !== 'function') {
+    const errorMsg = "upload.single('file') returned invalid value. Cannot register /api/documents/upload route.";
+    console.error('[Routes]', errorMsg);
+    throw new Error(errorMsg);
+  }
+
+  // Validar que todos los middlewares estén definidos antes de registrar la ruta
+  if (!authenticateToken || typeof authenticateToken !== 'function') {
+    throw new Error("authenticateToken is not a function. Cannot register /api/documents/upload route.");
+  }
+  if (!uploadLimiter || typeof uploadLimiter !== 'function') {
+    throw new Error("uploadLimiter is not a function. Cannot register /api/documents/upload route.");
+  }
+
   app.post(
     "/api/documents/upload", 
     authenticateToken, 
     uploadLimiter,
-    upload.single("file"), 
+    uploadSingle, 
     async (req: Request, res: Response) => {
       const authReq = req as AuthRequest;
       try {

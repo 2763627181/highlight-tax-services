@@ -26,8 +26,10 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import fs from "fs";
 
 // Cargar variables de entorno
-import { config } from "dotenv";
-config();
+// Solo cargar dotenv en desarrollo (Vercel inyecta variables automáticamente)
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  import("dotenv").then(({ config }) => config());
+}
 
 /**
  * Configuración de R2

@@ -1,6 +1,8 @@
 // Cargar variables de entorno desde .env antes de cualquier otra cosa
-import { config } from "dotenv";
-config();
+// Solo cargar dotenv en desarrollo (Vercel inyecta variables automáticamente)
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  import("dotenv").then(({ config }) => config());
+}
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
