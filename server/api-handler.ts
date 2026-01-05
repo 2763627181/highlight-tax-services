@@ -8,12 +8,20 @@ let handler: any = null;
 let initError: Error | null = null;
 
 async function handlerFn(req: any, res: any) {
-  // NO forzar Content-Type aquí - dejar que Express lo maneje
-  // Esto permite que los archivos estáticos se sirvan con sus tipos MIME correctos
-
   // Log de inicio de petición para debugging en Vercel
   const startTime = Date.now();
-  console.log(`[API] Request started: ${req.method} ${req.path || req.url} at ${new Date().toISOString()}`);
+  const path = req.path || req.url || '';
+  
+  // FILTRO CRÍTICO: Rechazar inmediatamente rutas no-API
+  // Esto previene timeouts y carga innecesaria
+  if (!path.startsWith('/api/')) {
+    console.log(`[API] Rejecting non-API route immediately: ${req.method} ${path}`);
+    // NO responder - dejar que Vercel maneje la ruta automáticamente
+    // Si respondemos aquí, interferimos con el servido automático de Vercel
+    return;
+  }
+
+  console.log(`[API] Request started: ${req.method} ${path} at ${new Date().toISOString()}`);
 
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
@@ -173,22 +181,13 @@ async function handlerFn(req: any, res: any) {
     console.log(`[API] Request completed: ${req.method} ${path} in ${duration}ms`);
     
     // Asegurar que la respuesta se haya enviado
-    // SOLO para rutas API
+    // SOLO para rutas API (las no-API ya fueron rechazadas al inicio)
     if (!res.headersSent && !res.writableEnded) {
-      if (path.startsWith('/api/')) {
-        // Rutas API sin respuesta - enviar error
-        console.warn('[API] Warning: API route response not sent:', path);
-        res.status(500).json({ 
-          error: 'Internal server error',
-          message: 'The API route did not send a response'
-        });
-      } else {
-        // Rutas no-API no deberían llegar aquí en Vercel
-        // Si llegan, es porque Vercel no las manejó (error de configuración)
-        console.error('[API] ERROR: Non-API route reached handler:', path);
-        console.error('[API] This should not happen. Vercel should serve static files automatically.');
-        // No responder - dejar que Vercel maneje el 404
-      }
+      console.warn('[API] Warning: API route response not sent:', path);
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: 'The API route did not send a response'
+      });
     }
     
     return result;

@@ -2,10 +2,10 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "outputDirectory": "dist/public",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/handler"
+      "src": "/api/(.*)",
+      "dest": "/api/handler"
     }
   ],
   "functions": {
