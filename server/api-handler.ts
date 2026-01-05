@@ -11,6 +11,10 @@ async function handlerFn(req: any, res: any) {
   // NO forzar Content-Type aquí - dejar que Express lo maneje
   // Esto permite que los archivos estáticos se sirvan con sus tipos MIME correctos
 
+  // Log de inicio de petición para debugging en Vercel
+  const startTime = Date.now();
+  console.log(`[API] Request started: ${req.method} ${req.path || req.url} at ${new Date().toISOString()}`);
+
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
     console.error('[API] Returning initialization error:', initError);
@@ -82,9 +86,19 @@ async function handlerFn(req: any, res: any) {
         }
       });
       
-      // Crear el handler serverless
+      // Crear el handler serverless con configuración optimizada para Vercel
       handler = serverless(app, {
         binary: ['image/*', 'application/pdf', 'application/octet-stream'],
+        // Aumentar timeout para cold starts en Vercel
+        requestId: 'x-vercel-id',
+        // Manejar errores de timeout mejor
+        response: {
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          },
+        },
       });
       
       console.log('[API] Express app initialized successfully');
@@ -136,9 +150,14 @@ async function handlerFn(req: any, res: any) {
     if (!handler) {
       throw new Error('Handler no está inicializado');
     }
-    return await handler(req, res);
+    
+    const result = await handler(req, res);
+    const duration = Date.now() - startTime;
+    console.log(`[API] Request completed: ${req.method} ${req.path || req.url} in ${duration}ms`);
+    return result;
   } catch (error) {
-    console.error('[API] Error in handler execution:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[API] Error in handler execution after ${duration}ms:`, error);
     const err = error as Error;
     if (!res.headersSent) {
       // @ts-ignore - process está disponible en runtime
@@ -148,7 +167,8 @@ async function handlerFn(req: any, res: any) {
         message: isProduction 
           ? 'Internal server error' 
           : err.message,
-        stack: isProduction ? undefined : err.stack
+        stack: isProduction ? undefined : err.stack,
+        duration: `${duration}ms`
       });
     }
   }
