@@ -898,46 +898,83 @@ export async function registerRoutes(
    * - Registra actividad en log
    */
   app.post("/api/auth/register", finalAuthLimiter, async (req: Request, res: Response) => {
+    console.log('[Register] POST /api/auth/register - Request received:', {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      hasBody: !!req.body,
+      email: req.body?.email ? '***' : 'missing',
+      timestamp: new Date().toISOString()
+    });
+    
     // Asegurar que siempre devolvamos JSON
     res.setHeader('Content-Type', 'application/json');
     
     try {
+      console.log('[Register] Checking storage availability...');
       // Verificar que storage esté disponible
       if (!storage) {
+        console.error('[Register] Storage no está inicializado');
         throw new Error("Storage no está inicializado");
       }
+      console.log('[Register] Storage OK');
       
       // Verificar conexión a la base de datos antes de continuar
+      console.log('[Register] Testing database connection...');
+      const dbStartTime = Date.now();
       try {
         await db.execute(sql`SELECT 1`);
+        const dbDuration = Date.now() - dbStartTime;
+        console.log(`[Register] Database connection OK (${dbDuration}ms)`);
       } catch (dbError) {
-        console.error("[Register] Database connection error:", dbError);
+        const dbDuration = Date.now() - dbStartTime;
+        console.error(`[Register] Database connection error after ${dbDuration}ms:`, dbError);
+        if (dbError instanceof Error) {
+          console.error('[Register] Error name:', dbError.name);
+          console.error('[Register] Error message:', dbError.message);
+          console.error('[Register] Error stack:', dbError.stack);
+        }
         const errorMessage = dbError instanceof Error ? dbError.message : String(dbError);
         throw new Error(`No se pudo conectar a la base de datos: ${errorMessage}. Verifica DATABASE_URL en las variables de entorno.`);
       }
       // Validar datos de entrada
+      console.log('[Register] Validating input data...');
       const result = registerSchema.safeParse(req.body);
       if (!result.success) {
+        console.log('[Register] Validation failed:', result.error.errors);
         res.status(400).json({ 
           message: "Validación fallida", 
           errors: result.error.errors.map(e => e.message)
         });
         return;
       }
+      console.log('[Register] Validation OK');
 
       const { email, password, name, phone } = result.data;
+      console.log('[Register] Processing registration for:', email);
 
       // Verificar email único
+      console.log('[Register] Checking if email already exists...');
+      const userCheckStartTime = Date.now();
       const existingUser = await storage.getUserByEmail(email);
+      const userCheckDuration = Date.now() - userCheckStartTime;
+      console.log(`[Register] Email check completed (${userCheckDuration}ms):`, existingUser ? 'exists' : 'available');
       if (existingUser) {
+        console.log('[Register] Email already registered');
         res.status(400).json({ message: "Este email ya está registrado" });
         return;
       }
 
       // Hashear contraseña con bcrypt
+      console.log('[Register] Hashing password...');
+      const hashStartTime = Date.now();
       const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+      const hashDuration = Date.now() - hashStartTime;
+      console.log(`[Register] Password hashed (${hashDuration}ms)`);
 
       // Crear usuario
+      console.log('[Register] Creating user in database...');
+      const createUserStartTime = Date.now();
       const user = await storage.createUser({
         email,
         password: hashedPassword,
@@ -945,30 +982,46 @@ export async function registerRoutes(
         phone: phone || null,
         role: "client",
       });
+      const createUserDuration = Date.now() - createUserStartTime;
+      console.log(`[Register] User created successfully (${createUserDuration}ms):`, { id: user.id, email: user.email });
 
       // Registrar actividad
-      await storage.createActivityLog({
-        userId: user.id,
-        action: "user_registered",
-        details: `Nuevo usuario registrado: ${email}`,
-      });
+      console.log('[Register] Logging activity...');
+      try {
+        await storage.createActivityLog({
+          userId: user.id,
+          action: "user_registered",
+          details: `Nuevo usuario registrado: ${email}`,
+        });
+        console.log('[Register] Activity logged');
+      } catch (activityError) {
+        console.warn('[Register] Error logging activity (non-critical):', activityError);
+      }
 
       // Enviar email de bienvenida (no bloquea la respuesta)
-      sendWelcomeEmail({ name: user.name, email: user.email }).catch(console.error);
+      console.log('[Register] Sending welcome email (async)...');
+      sendWelcomeEmail({ name: user.name, email: user.email }).catch((emailError) => {
+        console.warn('[Register] Error sending welcome email (non-critical):', emailError);
+      });
 
       // Generar token JWT
+      console.log('[Register] Generating JWT token...');
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         JWT_SECRET,
         { expiresIn: `${TOKEN_EXPIRY_DAYS}d` }
       );
+      console.log('[Register] JWT token generated');
 
       // Establecer cookie segura
       res.cookie("token", token, COOKIE_OPTIONS);
+      console.log('[Register] Cookie set');
 
+      console.log('[Register] Sending success response');
       res.json({
         user: { id: user.id, email: user.email, role: user.role, name: user.name },
       });
+      console.log('[Register] Registration completed successfully');
     } catch (error) {
       console.error("Error de registro:", error);
       
@@ -1053,9 +1106,12 @@ export async function registerRoutes(
 
       // Buscar usuario
       console.log('[Routes] /api/auth/login - Searching for user by email...');
+      const userSearchStartTime = Date.now();
       const user = await storage.getUserByEmail(email);
-      console.log('[Routes] /api/auth/login - User found:', user ? `id=${user.id}` : 'not found');
+      const userSearchDuration = Date.now() - userSearchStartTime;
+      console.log(`[Routes] /api/auth/login - User search completed (${userSearchDuration}ms):`, user ? `id=${user.id}` : 'not found');
       if (!user) {
+        console.log('[Routes] /api/auth/login - User not found, returning 401');
         // Respuesta genérica para no revelar si el email existe
         if (!res.headersSent) {
           res.status(401).json({ message: "Credenciales inválidas" });
@@ -1064,8 +1120,13 @@ export async function registerRoutes(
       }
 
       // Verificar contraseña
+      console.log('[Routes] /api/auth/login - Verifying password...');
+      const passwordCheckStartTime = Date.now();
       const validPassword = await bcrypt.compare(password, user.password);
+      const passwordCheckDuration = Date.now() - passwordCheckStartTime;
+      console.log(`[Routes] /api/auth/login - Password verification completed (${passwordCheckDuration}ms):`, validPassword ? 'valid' : 'invalid');
       if (!validPassword) {
+        console.log('[Routes] /api/auth/login - Invalid password, returning 401');
         if (!res.headersSent) {
           res.status(401).json({ message: "Credenciales inválidas" });
         }
@@ -1073,26 +1134,31 @@ export async function registerRoutes(
       }
 
       // Registrar actividad (no bloquear si falla)
+      console.log('[Routes] /api/auth/login - Logging activity...');
       try {
         await storage.createActivityLog({
           userId: user.id,
           action: "user_login",
           details: `Usuario inició sesión: ${email}`,
         });
+        console.log('[Routes] /api/auth/login - Activity logged');
       } catch (activityError) {
-        console.warn('[Routes] Error logging activity (non-critical):', activityError);
+        console.warn('[Routes] /api/auth/login - Error logging activity (non-critical):', activityError);
         // Continuar aunque falle el log de actividad
       }
 
       // Generar token JWT
+      console.log('[Routes] /api/auth/login - Generating JWT token...');
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
         JWT_SECRET,
         { expiresIn: `${TOKEN_EXPIRY_DAYS}d` }
       );
+      console.log('[Routes] /api/auth/login - JWT token generated');
 
       // Establecer cookie segura
       res.cookie("token", token, COOKIE_OPTIONS);
+      console.log('[Routes] /api/auth/login - Cookie set');
 
       // Asegurar que la respuesta se envíe correctamente
       if (!res.headersSent) {
@@ -1103,9 +1169,16 @@ export async function registerRoutes(
       } else {
         console.warn('[Routes] /api/auth/login - Response already sent, cannot send success response');
       }
+      console.log('[Routes] /api/auth/login - Login completed successfully');
     } catch (error) {
       console.error('[Routes] /api/auth/login - Error:', error);
-      console.error('[Routes] /api/auth/login - Error stack:', (error as Error).stack);
+      if (error instanceof Error) {
+        console.error('[Routes] /api/auth/login - Error name:', error.name);
+        console.error('[Routes] /api/auth/login - Error message:', error.message);
+        console.error('[Routes] /api/auth/login - Error stack:', error.stack);
+      } else {
+        console.error('[Routes] /api/auth/login - Error object:', JSON.stringify(error, null, 2));
+      }
       if (!res.headersSent) {
         res.status(500).json({ 
           message: "Error al iniciar sesión",

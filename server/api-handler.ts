@@ -165,12 +165,61 @@ async function handlerFn(req: any, res: any) {
     const result = await Promise.race([handlerPromise, timeoutPromise]);
     
     const duration = Date.now() - startTime;
-    console.log(`[API] Request completed: ${req.method} ${req.path || req.url} in ${duration}ms`);
+    const path = req.path || req.url || '';
+    console.log(`[API] Request completed: ${req.method} ${path} in ${duration}ms`);
     
     // Asegurar que la respuesta se haya enviado
+    // SOLO para rutas API - no interferir con rutas del frontend
     if (!res.headersSent && !res.writableEnded) {
-      console.warn('[API] Warning: Response not sent, sending default response');
-      res.status(200).json({ message: 'OK' });
+      // Solo enviar respuesta por defecto para rutas API
+      if (path.startsWith('/api/')) {
+        console.warn('[API] Warning: API route response not sent, sending default response');
+        res.status(200).json({ message: 'OK' });
+      } else {
+        // Para rutas no-API (frontend), verificar si static.ts ya manejó la respuesta
+        // Si no se envió respuesta, puede ser que static.ts no encontró el archivo
+        // En ese caso, intentar servir index.html manualmente
+        console.warn('[API] Warning: Non-API route response not sent:', path);
+        console.log('[API] Attempting to serve index.html for SPA route');
+        
+        // Intentar servir index.html para SPA routing
+        try {
+          const fs = await import('fs');
+          const pathModule = await import('path');
+          const possiblePaths = [
+            pathModule.resolve(process.cwd(), 'dist', 'public', 'index.html'),
+            pathModule.resolve(process.cwd(), '..', 'dist', 'public', 'index.html'),
+            pathModule.resolve('/var/task', 'dist', 'public', 'index.html'),
+          ];
+          
+          let indexPath: string | null = null;
+          for (const possiblePath of possiblePaths) {
+            if (fs.existsSync(possiblePath)) {
+              indexPath = possiblePath;
+              break;
+            }
+          }
+          
+          if (indexPath) {
+            console.log('[API] Serving index.html from:', indexPath);
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            const html = fs.readFileSync(indexPath, 'utf-8');
+            res.send(html);
+          } else {
+            console.error('[API] index.html not found in any of these paths:', possiblePaths);
+            res.status(404).json({ 
+              error: 'Frontend not found',
+              message: 'The frontend files were not found. Please ensure the build completed successfully.'
+            });
+          }
+        } catch (staticError) {
+          console.error('[API] Error serving static file:', staticError);
+          res.status(500).json({ 
+            error: 'Error serving frontend',
+            message: 'Could not serve the frontend application'
+          });
+        }
+      }
     }
     
     return result;

@@ -63,11 +63,29 @@ export function serveStatic(app: Express) {
     }
     
     // Para rutas no-API, intentar servir index.html (SPA routing)
+    console.log('[Static] Serving SPA route:', req.path, 'from distPath:', distPath);
     const indexPath = path.resolve(distPath!, "index.html");
+    console.log('[Static] Looking for index.html at:', indexPath);
+    
     if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
+      console.log('[Static] Found index.html, serving...');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          console.error('[Static] Error sending index.html:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: "Error serving frontend" });
+          }
+        } else {
+          console.log('[Static] Successfully served index.html');
+        }
+      });
     } else {
       console.error('[Static] index.html not found at:', indexPath);
+      console.error('[Static] distPath exists:', distPath ? fs.existsSync(distPath) : false);
+      if (distPath && fs.existsSync(distPath)) {
+        console.error('[Static] Contents of distPath:', fs.readdirSync(distPath));
+      }
       if (!res.headersSent) {
         res.status(404).json({ error: "Frontend not built. Please run 'npm run build'" });
       }
