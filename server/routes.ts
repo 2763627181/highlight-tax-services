@@ -385,6 +385,7 @@ try {
       cb(null, true);
     },
   });
+  console.log('[Routes] Multer upload initialized successfully');
 } catch (error) {
   console.error('[Routes] Error initializing multer upload:', error);
   // Crear un upload fallback que lanza error si se intenta usar
@@ -395,6 +396,18 @@ try {
       cb(new Error("File upload is not properly configured. Please contact support."));
     },
   });
+  console.log('[Routes] Using fallback multer upload (memory storage)');
+}
+
+// Asegurar que upload esté definido (verificación adicional)
+if (!upload) {
+  console.error('[Routes] CRITICAL: upload is still undefined after initialization');
+  // Forzar inicialización con memory storage como último recurso
+  upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_FILE_SIZE },
+  });
+  console.log('[Routes] Forced upload initialization with memory storage');
 }
 
 // =============================================================================
@@ -559,6 +572,17 @@ export async function registerRoutes(
   try {
     console.log('[Routes] Starting route registration...');
     
+    // Verificar que los middlewares estén definidos (con logging detallado)
+    console.log('[Routes] Checking middlewares...', {
+      authLimiter: typeof authLimiter,
+      uploadLimiter: typeof uploadLimiter,
+      contactLimiter: typeof contactLimiter,
+      messageLimiter: typeof messageLimiter,
+      authenticateToken: typeof authenticateToken,
+      requireAdmin: typeof requireAdmin,
+      upload: typeof upload,
+    });
+    
     // Validar que todos los middlewares estén definidos antes de registrar rutas
     const requiredMiddlewares = {
       authLimiter,
@@ -574,12 +598,24 @@ export async function registerRoutes(
     for (const [name, middleware] of Object.entries(requiredMiddlewares)) {
       if (!middleware) {
         missingMiddlewares.push(name);
+        console.error(`[Routes] Middleware '${name}' is undefined or null`);
       }
     }
     
     if (missingMiddlewares.length > 0) {
       const errorMsg = `Required middlewares are undefined: ${missingMiddlewares.join(', ')}. Cannot register routes.`;
       console.error('[Routes]', errorMsg);
+      console.error('[Routes] Full middleware check:', {
+        authLimiter: !!authLimiter,
+        uploadLimiter: !!uploadLimiter,
+        contactLimiter: !!contactLimiter,
+        messageLimiter: !!messageLimiter,
+        authenticateToken: !!authenticateToken,
+        requireAdmin: !!requireAdmin,
+        upload: !!upload,
+        uploadType: typeof upload,
+        uploadValue: upload,
+      });
       throw new Error(errorMsg);
     }
     
@@ -587,6 +623,7 @@ export async function registerRoutes(
     if (!upload || typeof upload.single !== 'function') {
       const errorMsg = 'upload.single is not available. Multer upload middleware is not properly initialized.';
       console.error('[Routes]', errorMsg);
+      console.error('[Routes] upload object:', upload);
       throw new Error(errorMsg);
     }
     
