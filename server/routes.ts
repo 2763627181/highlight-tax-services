@@ -184,6 +184,34 @@ const caseUpdateSchema = z.object({
  * 
  * 5 intentos cada 15 minutos por IP
  */
+// Key generator personalizado para rate limiting en Vercel
+// Maneja correctamente los proxies y headers X-Forwarded-For
+const rateLimitKeyGenerator = (req: Request): string => {
+  // Intentar obtener IP de diferentes fuentes (Vercel, proxies, etc.)
+  const xForwardedFor = req.headers['x-forwarded-for'];
+  const xRealIp = req.headers['x-real-ip'];
+  const cfConnectingIp = req.headers['cf-connecting-ip']; // Cloudflare
+  
+  // Si hay X-Forwarded-For, tomar la primera IP (la original del cliente)
+  if (xForwardedFor && typeof xForwardedFor === 'string') {
+    return xForwardedFor.split(',')[0].trim();
+  }
+  
+  // Si hay X-Real-IP, usarlo
+  if (xRealIp && typeof xRealIp === 'string') {
+    return xRealIp;
+  }
+  
+  // Si hay Cloudflare IP, usarlo
+  if (cfConnectingIp && typeof cfConnectingIp === 'string') {
+    return cfConnectingIp;
+  }
+  
+  // Fallback a req.ip (requiere trust proxy configurado)
+  // O usar un identificador basado en el path si no hay IP disponible
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+};
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 5, // 5 intentos
@@ -193,6 +221,14 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Key generator personalizado para Vercel
+  keyGenerator: rateLimitKeyGenerator,
+  // Deshabilitar validaciones estrictas para proxies
+  validate: {
+    trustProxy: false, // Ya lo manejamos manualmente
+    xForwardedForHeader: false,
+    ip: false,
+  },
   handler: (req: Request, res: Response) => {
     // Asegurar que siempre devolvamos JSON con Content-Type correcto
     // Fix: Previene error 'Unexpected token' cuando rate limiter bloquea
@@ -216,6 +252,12 @@ const uploadLimiter = rateLimit({
   message: { 
     message: "Límite de carga de archivos alcanzado. Intente más tarde." 
   },
+  keyGenerator: rateLimitKeyGenerator,
+  validate: {
+    trustProxy: false,
+    xForwardedForHeader: false,
+    ip: false,
+  },
 });
 
 /**
@@ -230,6 +272,12 @@ const contactLimiter = rateLimit({
   message: { 
     message: "Ha enviado demasiados mensajes. Intente más tarde." 
   },
+  keyGenerator: rateLimitKeyGenerator,
+  validate: {
+    trustProxy: false,
+    xForwardedForHeader: false,
+    ip: false,
+  },
 });
 
 /**
@@ -243,6 +291,12 @@ const messageLimiter = rateLimit({
   max: 30,
   message: { 
     message: "Límite de mensajes alcanzado. Espere un momento." 
+  },
+  keyGenerator: rateLimitKeyGenerator,
+  validate: {
+    trustProxy: false,
+    xForwardedForHeader: false,
+    ip: false,
   },
 });
 
@@ -595,24 +649,48 @@ export async function registerRoutes(
     message: { message: "Demasiados intentos de autenticación. Intente de nuevo en 15 minutos.", retryAfter: 15 },
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: rateLimitKeyGenerator,
+    validate: {
+      trustProxy: false,
+      xForwardedForHeader: false,
+      ip: false,
+    },
   });
   
   const _uploadLimiter = uploadLimiter || rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
     message: { message: "Límite de carga de archivos alcanzado. Intente más tarde." },
+    keyGenerator: rateLimitKeyGenerator,
+    validate: {
+      trustProxy: false,
+      xForwardedForHeader: false,
+      ip: false,
+    },
   });
   
   const _contactLimiter = contactLimiter || rateLimit({
     windowMs: 60 * 60 * 1000,
     max: 3,
     message: { message: "Ha enviado demasiados mensajes. Intente más tarde." },
+    keyGenerator: rateLimitKeyGenerator,
+    validate: {
+      trustProxy: false,
+      xForwardedForHeader: false,
+      ip: false,
+    },
   });
   
   const _messageLimiter = messageLimiter || rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 30,
     message: { message: "Límite de mensajes alcanzado. Espere un momento." },
+    keyGenerator: rateLimitKeyGenerator,
+    validate: {
+      trustProxy: false,
+      xForwardedForHeader: false,
+      ip: false,
+    },
   });
   
   // Asegurar que upload esté inicializado

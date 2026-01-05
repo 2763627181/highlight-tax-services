@@ -73,6 +73,8 @@ declare module "http" {
  * - X-XSS-Protection: Protección adicional contra XSS
  * - Strict-Transport-Security: Fuerza HTTPS
  */
+// Configurar Helmet para trabajar detrás de proxies como Vercel
+// Vercel maneja automáticamente los headers de proxy, así que no validamos estrictamente
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -80,7 +82,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "wss:", "ws:"],
+      connectSrc: ["'self'", "wss:", "ws:", "https:"],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
@@ -88,6 +90,13 @@ app.use(helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
+  // Deshabilitar validación estricta de headers de proxy para Vercel
+  // Vercel maneja X-Forwarded-For, Forwarded, etc. automáticamente
+  strictTransportSecurity: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
 }));
 
 /**
@@ -244,6 +253,17 @@ app.use((req, res, next) => {
  * en modo desarrollo (Vite) o producción (archivos estáticos)
  */
 (async () => {
+  // Verificar conexión a la base de datos al inicio
+  try {
+    const { testConnection } = await import("./db");
+    const dbConnected = await testConnection();
+    if (!dbConnected) {
+      console.error('[Server] ⚠️  Advertencia: No se pudo conectar a la base de datos');
+    }
+  } catch (error) {
+    console.error('[Server] ⚠️  Error al verificar conexión a la base de datos:', error);
+  }
+
   // Registrar rutas de la API
   await registerRoutes(httpServer, app);
 

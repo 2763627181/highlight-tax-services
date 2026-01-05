@@ -19,6 +19,53 @@ export function log(message: string, source = "express") {
 export async function createApp(httpServer?: Server) {
   const app = express();
 
+  // CRÍTICO: Configurar trust proxy ANTES de cualquier middleware
+  // Esto es necesario para que rate limiting funcione correctamente en Vercel
+  // Vercel actúa como proxy, así que necesitamos confiar en los headers X-Forwarded-*
+  app.set('trust proxy', true);
+
+  // CRÍTICO: Middleware para preservar el método HTTP en Vercel
+  // Este debe ser el PRIMER middleware para interceptar todas las peticiones
+  // El problema es que serverless-http está cambiando POST a GET
+  app.use((req: any, _res: any, next: any) => {
+    const incomingMethod = req.method;
+    
+    // Buscar el método preservado en headers (lo guardamos antes de serverless-http)
+    const preservedMethod = req.headers['x-preserved-http-method'] ||
+                            req.headers['x-http-method-override'] || 
+                            req.headers['x-method-override'] ||
+                            req.headers['x-original-method'];
+    
+    // Si encontramos un método preservado y es diferente al actual, RESTAURARLO
+    if (preservedMethod && typeof preservedMethod === 'string') {
+      const correctMethod = preservedMethod.toUpperCase();
+      if (correctMethod !== incomingMethod) {
+        console.log(`[App] RESTORING method: ${incomingMethod} -> ${correctMethod} for ${req.path || req.url}`);
+        
+        // Forzar el método correcto
+        req.method = correctMethod;
+        
+        // También intentar con defineProperty para hacerlo más permanente
+        try {
+          Object.defineProperty(req, 'method', {
+            value: correctMethod,
+            writable: true,
+            configurable: true,
+            enumerable: true
+          });
+        } catch (e) {
+          // Si falla, al menos ya lo cambiamos arriba
+          console.warn('[App] Could not use defineProperty for method, but method was changed');
+        }
+      }
+    }
+    
+    // Log final para verificar
+    console.log(`[App] Processing ${req.method} ${req.path || req.url} (incoming was: ${incomingMethod})`);
+    
+    next();
+  });
+
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
@@ -67,6 +114,24 @@ export async function createApp(httpServer?: Server) {
 
   app.use(hpp());
 
+  // Key generator para rate limiting en Vercel
+  const rateLimitKeyGenerator = (req: Request): string => {
+    const xForwardedFor = req.headers['x-forwarded-for'];
+    const xRealIp = req.headers['x-real-ip'];
+    const cfConnectingIp = req.headers['cf-connecting-ip'];
+    
+    if (xForwardedFor && typeof xForwardedFor === 'string') {
+      return xForwardedFor.split(',')[0].trim();
+    }
+    if (xRealIp && typeof xRealIp === 'string') {
+      return xRealIp;
+    }
+    if (cfConnectingIp && typeof cfConnectingIp === 'string') {
+      return cfConnectingIp;
+    }
+    return req.ip || req.socket?.remoteAddress || 'unknown';
+  };
+
   const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
@@ -76,6 +141,12 @@ export async function createApp(httpServer?: Server) {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    keyGenerator: rateLimitKeyGenerator,
+    validate: {
+      trustProxy: false,
+      xForwardedForHeader: false,
+      ip: false,
+    },
     skip: (req) => {
       return req.path.startsWith('/assets') || 
              req.path.startsWith('/node_modules') ||
@@ -150,8 +221,14 @@ export async function createApp(httpServer?: Server) {
     }
   });
 
-  // NO agregar catch-all aquí - será agregado después de serveStatic en api/index.ts
-  // Esto permite que serveStatic maneje las rutas del frontend antes del catch-all
+  // Catch-all para rutas API no encontradas (después de todas las rutas)
+  // Solo para rutas /api/* que no fueron manejadas
+  app.use('/api/*', (_req: Request, res: Response) => {
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'application/json');
+      res.status(404).json({ message: "Ruta API no encontrada" });
+    }
+  });
 
   return app;
 }

@@ -11,23 +11,69 @@ async function handlerFn(req: any, res: any) {
   // Log de inicio de petición para debugging en Vercel
   const startTime = Date.now();
   
-  // En Vercel con rewrites, todas las rutas que llegan aquí son /api/*
-  // El path puede venir en req.url o req.path, y puede incluir o no el /api/ prefix
-  const originalUrl = req.url || '';
-  const path = req.path || originalUrl;
+  // Preservar el método HTTP original - CRÍTICO para que las rutas funcionen
+  const originalMethod = req.method;
+  
+  // En Vercel con rewrites, cuando se hace rewrite de /api/* a /api/handler,
+  // la ruta original viene en req.url pero puede estar en diferentes formatos
+  // Vercel preserva la ruta original en req.url después del rewrite
+  let path = req.url || req.path || '';
+  
+  // Log detallado para debugging
+  console.log('[API] Raw request info:', {
+    method: req.method,
+    url: req.url,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    query: req.query,
+    headers: {
+      'x-vercel-original-path': req.headers['x-vercel-original-path'],
+      'x-original-url': req.headers['x-original-url'],
+    }
+  });
+  
+  // Si el path es /api/handler o /handler, significa que Vercel hizo el rewrite
+  // En este caso, la ruta original debería estar en req.originalUrl o podemos extraerla
+  // Pero en realidad, con rewrites de Vercel, req.url debería tener la ruta original
+  // Si no, intentar obtenerla de headers o usar una ruta por defecto
+  if (path === '/api/handler' || path === '/handler' || !path.startsWith('/api/')) {
+    // Intentar obtener la ruta real de diferentes fuentes
+    const originalPath = req.originalUrl || 
+                        req.headers['x-vercel-original-path'] || 
+                        req.headers['x-original-url'] ||
+                        (req.query && req.query.path);
+    
+    if (originalPath) {
+      path = originalPath;
+    } else {
+      // Si no podemos determinar la ruta, usar /api como fallback
+      // Esto debería ser raro, pero es mejor que fallar completamente
+      path = '/api';
+      console.warn('[API] Could not determine original path, using /api as fallback');
+    }
+  }
   
   // Normalizar el path - asegurarnos de que tenga el formato correcto
   let normalizedPath = path;
+  
+  // Remover query string si existe
+  if (normalizedPath.includes('?')) {
+    normalizedPath = normalizedPath.split('?')[0];
+  }
+  
   if (!normalizedPath.startsWith('/')) {
     normalizedPath = `/${normalizedPath}`;
   }
   
-  // Si el path no tiene /api/, agregarlo (puede que Vercel lo haya removido en el rewrite)
-  if (!normalizedPath.startsWith('/api/')) {
-    // En Vercel, cuando usamos rewrites, el path puede venir sin /api/
-    // pero sabemos que todas las rutas que llegan aquí son API
+  // Asegurar que todas las rutas que llegan aquí tengan el prefijo /api/
+  // (excepto si es exactamente /api)
+  if (!normalizedPath.startsWith('/api/') && normalizedPath !== '/api') {
     normalizedPath = `/api${normalizedPath}`;
   }
+  
+  // CRÍTICO: Asegurar que el método HTTP se preserve
+  // serverless-http a veces puede cambiar el método, así que lo restauramos
+  req.method = originalMethod;
   
   // Actualizar req.path y req.url para que Express maneje correctamente las rutas
   req.path = normalizedPath;
@@ -101,25 +147,21 @@ async function handlerFn(req: any, res: any) {
         console.log('[API] Skipping static file serving - Vercel handles this automatically');
       }
       
-      // Catch-all para rutas API no encontradas (después de serveStatic)
-      // Solo para rutas /api/* que no fueron manejadas
-      app.use('/api/*', (_req: any, res: any) => {
-        if (!res.headersSent) {
-          res.setHeader('Content-Type', 'application/json');
-          res.status(404).json({ message: "Ruta API no encontrada" });
-        }
-      });
+      // NO agregar catch-all aquí - debe estar después de todas las rutas
+      // El catch-all se agregará en app.ts después de que todas las rutas estén registradas
       
       // Crear el handler serverless con configuración optimizada para Vercel
       handler = serverless(app, {
         binary: ['image/*', 'application/pdf', 'application/octet-stream'],
-        // Aumentar timeout para cold starts en Vercel
+        // Preservar el método HTTP original
         requestId: 'x-vercel-id',
+        // Configuración para manejar correctamente los métodos HTTP y el body
+        basePath: '', // No usar basePath para que las rutas funcionen correctamente
         // Manejar errores de timeout mejor
         response: {
           headers: {
             'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
           },
         },
@@ -169,40 +211,52 @@ async function handlerFn(req: any, res: any) {
     }
   }
   
-  // Ejecutar el handler con timeout para evitar que se cuelgue
+  // CRÍTICO: Preservar el método HTTP ANTES de que serverless-http lo procese
+  // El problema es que serverless-http puede cambiar POST a GET en ciertos casos
+  const preservedMethod = req.method || 'GET';
+  
+  console.log(`[API] Preserving method: ${preservedMethod} for path: ${normalizedPath}`);
+  
+  // Guardar el método en un header personalizado que Express puede leer
+  // Esto es necesario porque serverless-http puede cambiar el método
+  req.headers['x-preserved-http-method'] = preservedMethod;
+
+  // Ejecutar el handler - NO usar timeout manual, dejar que Vercel lo maneje
   try {
     if (!handler) {
       throw new Error('Handler no está inicializado');
     }
-    
-    // Timeout de 55 segundos (menos que el maxDuration de 60s para dar margen)
-    const handlerTimeout = 55000;
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(`Handler timeout after ${handlerTimeout}ms`));
-      }, handlerTimeout);
-    });
 
-    const handlerPromise = handler(req, res);
-    
-    // Race entre el handler y el timeout
-    const result = await Promise.race([handlerPromise, timeoutPromise]);
+    // Ejecutar el handler directamente
+    // El método se restaurará en el middleware de Express usando el header
+    // Vercel maneja el timeout automáticamente según maxDuration
+    const handlerResult = await handler(req, res);
     
     const duration = Date.now() - startTime;
     const finalPath = req.path || req.url || path;
-    console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
     
-    // Asegurar que la respuesta se haya enviado
-    // SOLO para rutas API (las no-API ya fueron rechazadas al inicio)
+    // Verificar si la respuesta fue enviada (con un pequeño delay para que Express termine)
+    // Solo verificar si no se ha enviado después de un tiempo razonable
     if (!res.headersSent && !res.writableEnded) {
-      console.warn('[API] Warning: API route response not sent:', path);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        message: 'The API route did not send a response'
-      });
+      // Esperar un poco más para que Express termine de procesar
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (!res.headersSent && !res.writableEnded) {
+        console.warn(`[API] Warning: API route response not sent: ${req.method} ${finalPath}`);
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            error: 'Internal server error',
+            message: 'The API route did not send a response'
+          });
+        }
+      } else {
+        console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
+      }
+    } else {
+      console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
     }
     
-    return result;
+    return handlerResult;
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error(`[API] Error in handler execution after ${duration}ms:`, error);
@@ -221,6 +275,9 @@ async function handlerFn(req: any, res: any) {
         duration: `${duration}ms`
       });
     }
+    
+    // Re-lanzar el error para que Vercel lo maneje
+    throw error;
   }
 }
 
