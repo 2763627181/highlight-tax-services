@@ -11,22 +11,29 @@ async function handlerFn(req: any, res: any) {
   // Log de inicio de petición para debugging en Vercel
   const startTime = Date.now();
   
-  // En Vercel, cuando usamos rewrites, el path original se mantiene en req.url
-  // pero req.path puede ser diferente. Necesitamos verificar ambos
+  // En Vercel con rewrites, todas las rutas que llegan aquí son /api/*
+  // El path puede venir en req.url o req.path, y puede incluir o no el /api/ prefix
   const originalUrl = req.url || '';
   const path = req.path || originalUrl;
-  const fullPath = originalUrl.startsWith('/') ? originalUrl : `/${originalUrl}`;
   
-  // FILTRO CRÍTICO: Rechazar inmediatamente rutas no-API
-  // En Vercel, todas las rutas que llegan aquí deberían ser /api/* debido al rewrite
-  // Pero verificamos por si acaso
-  if (!fullPath.startsWith('/api/') && !path.startsWith('/api/')) {
-    console.log(`[API] Rejecting non-API route immediately: ${req.method} ${fullPath} (path: ${path})`);
-    // NO responder - dejar que Vercel maneje la ruta automáticamente
-    return;
+  // Normalizar el path - asegurarnos de que tenga el formato correcto
+  let normalizedPath = path;
+  if (!normalizedPath.startsWith('/')) {
+    normalizedPath = `/${normalizedPath}`;
   }
-
-  console.log(`[API] Request started: ${req.method} ${fullPath} (path: ${path}) at ${new Date().toISOString()}`);
+  
+  // Si el path no tiene /api/, agregarlo (puede que Vercel lo haya removido en el rewrite)
+  if (!normalizedPath.startsWith('/api/')) {
+    // En Vercel, cuando usamos rewrites, el path puede venir sin /api/
+    // pero sabemos que todas las rutas que llegan aquí son API
+    normalizedPath = `/api${normalizedPath}`;
+  }
+  
+  // Actualizar req.path y req.url para que Express maneje correctamente las rutas
+  req.path = normalizedPath;
+  req.url = normalizedPath;
+  
+  console.log(`[API] Request started: ${req.method} ${normalizedPath} (original: ${path}) at ${new Date().toISOString()}`);
 
   // Si ya hubo un error de inicialización, devolverlo
   if (initError) {
@@ -182,7 +189,7 @@ async function handlerFn(req: any, res: any) {
     const result = await Promise.race([handlerPromise, timeoutPromise]);
     
     const duration = Date.now() - startTime;
-    const finalPath = req.path || req.url || fullPath;
+    const finalPath = req.path || req.url || normalizedPath;
     console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
     
     // Asegurar que la respuesta se haya enviado
