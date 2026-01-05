@@ -411,6 +411,20 @@ if (!upload) {
 }
 
 // =============================================================================
+// EXPORTACIÓN FORZADA DE CONSTANTES PARA ESBUILD
+// =============================================================================
+// Forzar que esbuild incluya estas constantes en el bundle
+// Esto previene que se eliminen durante tree-shaking
+// @ts-ignore - Solo para forzar evaluación
+if (false) {
+  void authLimiter;
+  void uploadLimiter;
+  void contactLimiter;
+  void messageLimiter;
+  void upload;
+}
+
+// =============================================================================
 // TIPOS DE TYPESCRIPT
 // =============================================================================
 
