@@ -583,70 +583,77 @@ export async function registerRoutes(
   httpServer: Server | undefined,
   app: Express
 ): Promise<Server | undefined> {
+  // CRITICAL FIX: Inicializar middlewares al inicio de la función (fuera del try)
+  // Esto asegura que estén disponibles en todo el scope de la función
+  console.log('[Routes] Starting route registration...');
+  console.log('[Routes] Initializing rate limiters...');
+  
+  // Inicializar rate limiters si no están definidos (fallback para esbuild)
+  const _authLimiter = authLimiter || rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { message: "Demasiados intentos de autenticación. Intente de nuevo en 15 minutos.", retryAfter: 15 },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  
+  const _uploadLimiter = uploadLimiter || rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { message: "Límite de carga de archivos alcanzado. Intente más tarde." },
+  });
+  
+  const _contactLimiter = contactLimiter || rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 3,
+    message: { message: "Ha enviado demasiados mensajes. Intente más tarde." },
+  });
+  
+  const _messageLimiter = messageLimiter || rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: { message: "Límite de mensajes alcanzado. Espere un momento." },
+  });
+  
+  // Asegurar que upload esté inicializado
+  let _upload = upload;
+  if (!_upload) {
+    console.warn('[Routes] upload is undefined, initializing fallback...');
+    _upload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: 10 * 1024 * 1024 },
+    });
+  }
+  
+  // Usar las variables locales en lugar de las constantes del módulo
+  // Esto asegura que funcionen incluso si esbuild no las inicializa correctamente
+  const finalAuthLimiter = _authLimiter;
+  const finalUploadLimiter = _uploadLimiter;
+  const finalContactLimiter = _contactLimiter;
+  const finalMessageLimiter = _messageLimiter;
+  const finalUpload = _upload;
+  
   try {
-    console.log('[Routes] Starting route registration...');
-    
-    // CRITICAL FIX: Inicializar middlewares dentro de la función para evitar problemas con esbuild
-    // Esto asegura que se ejecuten en el orden correcto, incluso cuando esbuild hace tree-shaking
-    console.log('[Routes] Initializing rate limiters...');
-    
-    // Inicializar rate limiters si no están definidos (fallback para esbuild)
-    const _authLimiter = authLimiter || rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 5,
-      message: { message: "Demasiados intentos de autenticación. Intente de nuevo en 15 minutos.", retryAfter: 15 },
-      standardHeaders: true,
-      legacyHeaders: false,
-    });
-    
-    const _uploadLimiter = uploadLimiter || rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 10,
-      message: { message: "Límite de carga de archivos alcanzado. Intente más tarde." },
-    });
-    
-    const _contactLimiter = contactLimiter || rateLimit({
-      windowMs: 60 * 60 * 1000,
-      max: 3,
-      message: { message: "Ha enviado demasiados mensajes. Intente más tarde." },
-    });
-    
-    const _messageLimiter = messageLimiter || rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 30,
-      message: { message: "Límite de mensajes alcanzado. Espere un momento." },
-    });
-    
-    // Asegurar que upload esté inicializado
-    let _upload = upload;
-    if (!_upload) {
-      console.warn('[Routes] upload is undefined, initializing fallback...');
-      _upload = multer({
-        storage: multer.memoryStorage(),
-        limits: { fileSize: 10 * 1024 * 1024 },
-      });
-    }
-    
     // Verificar que los middlewares estén definidos (con logging detallado)
     console.log('[Routes] Checking middlewares after initialization...', {
-      authLimiter: typeof _authLimiter,
-      uploadLimiter: typeof _uploadLimiter,
-      contactLimiter: typeof _contactLimiter,
-      messageLimiter: typeof _messageLimiter,
+      authLimiter: typeof finalAuthLimiter,
+      uploadLimiter: typeof finalUploadLimiter,
+      contactLimiter: typeof finalContactLimiter,
+      messageLimiter: typeof finalMessageLimiter,
       authenticateToken: typeof authenticateToken,
       requireAdmin: typeof requireAdmin,
-      upload: typeof _upload,
+      upload: typeof finalUpload,
     });
     
     // Validar que todos los middlewares estén definidos antes de registrar rutas
     const requiredMiddlewares = {
-      authLimiter: _authLimiter,
-      uploadLimiter: _uploadLimiter,
-      contactLimiter: _contactLimiter,
-      messageLimiter: _messageLimiter,
+      authLimiter: finalAuthLimiter,
+      uploadLimiter: finalUploadLimiter,
+      contactLimiter: finalContactLimiter,
+      messageLimiter: finalMessageLimiter,
       authenticateToken,
       requireAdmin,
-      upload: _upload,
+      upload: finalUpload,
     };
     
     const missingMiddlewares: string[] = [];
@@ -661,36 +668,28 @@ export async function registerRoutes(
       const errorMsg = `Required middlewares are undefined: ${missingMiddlewares.join(', ')}. Cannot register routes.`;
       console.error('[Routes]', errorMsg);
       console.error('[Routes] Full middleware check:', {
-        authLimiter: !!authLimiter,
-        uploadLimiter: !!uploadLimiter,
-        contactLimiter: !!contactLimiter,
-        messageLimiter: !!messageLimiter,
+        authLimiter: !!finalAuthLimiter,
+        uploadLimiter: !!finalUploadLimiter,
+        contactLimiter: !!finalContactLimiter,
+        messageLimiter: !!finalMessageLimiter,
         authenticateToken: !!authenticateToken,
         requireAdmin: !!requireAdmin,
-        upload: !!upload,
-        uploadType: typeof upload,
-        uploadValue: upload,
+        upload: !!finalUpload,
+        uploadType: typeof finalUpload,
+        uploadValue: finalUpload,
       });
       throw new Error(errorMsg);
     }
     
     // Validar que upload.single esté disponible
-    if (!_upload || typeof _upload.single !== 'function') {
+    if (!finalUpload || typeof finalUpload.single !== 'function') {
       const errorMsg = 'upload.single is not available. Multer upload middleware is not properly initialized.';
       console.error('[Routes]', errorMsg);
-      console.error('[Routes] upload object:', _upload);
+      console.error('[Routes] upload object:', finalUpload);
       throw new Error(errorMsg);
     }
     
     console.log('[Routes] All middlewares validated successfully');
-    
-    // Usar las variables locales en lugar de las constantes del módulo
-    // Esto asegura que funcionen incluso si esbuild no las inicializa correctamente
-    const finalAuthLimiter = _authLimiter;
-    const finalUploadLimiter = _uploadLimiter;
-    const finalContactLimiter = _contactLimiter;
-    const finalMessageLimiter = _messageLimiter;
-    const finalUpload = _upload;
     
     // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
     if (httpServer && wsService) {
