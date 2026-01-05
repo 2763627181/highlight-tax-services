@@ -129,3 +129,4 @@ Antes de reportar un problema, verifica:
 3. **Asegúrate de hacer un nuevo deploy** después de agregar variables
 4. **Verifica la conexión a Supabase** desde el dashboard de Supabase
 
+

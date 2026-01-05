@@ -15,13 +15,18 @@
  * - CORS: Control de origen cruzado
  * 
  * ## Flujo de Inicialización
- * 1. Configuración de middleware de seguridad
- * 2. Configuración de parsers de body
- * 3. Configuración de logging
- * 4. Registro de rutas API
- * 5. Configuración de Vite (desarrollo) o archivos estáticos (producción)
- * 6. Inicio del servidor HTTP en puerto 5000
+ * 1. Carga de variables de entorno desde .env
+ * 2. Configuración de middleware de seguridad
+ * 3. Configuración de parsers de body
+ * 4. Configuración de logging
+ * 5. Registro de rutas API
+ * 6. Configuración de Vite (desarrollo) o archivos estáticos (producción)
+ * 7. Inicio del servidor HTTP en puerto 5000
  */
+
+// Cargar variables de entorno desde .env ANTES de cualquier otra importación
+import { config } from "dotenv";
+config();
 
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
@@ -276,14 +281,7 @@ app.use((req, res, next) => {
    * reusePort: true para permitir múltiples workers (clustering)
    */
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-      reusePort: true,
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
+  httpServer.listen(port, "0.0.0.0", () => {
+    log(`serving on port ${port}`);
+  });
 })();

@@ -69,3 +69,4 @@ Después de ejecutar, verifica:
 **Nota:** La Opción 2 (SQL Editor) es la más fácil y no requiere configuración local.
 
 
+

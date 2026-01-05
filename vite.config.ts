@@ -30,31 +30,6 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
-    cssCodeSplit: true,
-    rollupOptions: {
-      output: {
-        // Separar CSS crítico del no crítico
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name?.endsWith('.css')) {
-            return 'assets/[name]-[hash][extname]';
-          }
-          return 'assets/[name]-[hash][extname]';
-        },
-        // Code splitting para reducir tamaño de chunks
-        manualChunks: (id) => {
-          // Separar vendor chunks grandes
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'vendor-react';
-            }
-            if (id.includes('@tanstack')) {
-              return 'vendor-query';
-            }
-            return 'vendor';
-          }
-        },
-      },
-    },
   },
   server: {
     fs: {

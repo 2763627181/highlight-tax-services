@@ -200,6 +200,15 @@ const translations = {
     cannotChangeOwnRole: "You cannot change your own role",
     changeRole: "Change Role",
     never: "Never",
+    viewDocuments: "View Documents",
+    clientDocuments: "Client Documents",
+    clientDocumentsDesc: "Documents uploaded by this client",
+    noDocuments: "No documents uploaded",
+    documentName: "Document Name",
+    category: "Category",
+    uploadedAt: "Uploaded At",
+    size: "Size",
+    download: "Download",
   },
   es: {
     adminPanel: "Panel Administrativo",
@@ -295,6 +304,15 @@ const translations = {
     cannotChangeOwnRole: "No puedes cambiar tu propio rol",
     changeRole: "Cambiar Rol",
     never: "Nunca",
+    viewDocuments: "Ver Documentos",
+    clientDocuments: "Documentos del Cliente",
+    clientDocumentsDesc: "Documentos subidos por este cliente",
+    noDocuments: "No hay documentos subidos",
+    documentName: "Nombre del Documento",
+    category: "Categoría",
+    uploadedAt: "Subido el",
+    size: "Tamaño",
+    download: "Descargar",
   },
   fr: {
     adminPanel: "Panneau d'Administration",
@@ -708,6 +726,8 @@ export default function Admin() {
     filingStatus: "single",
     dependents: 0,
   });
+  const [selectedClient, setSelectedClient] = useState<ClientWithDetails | null>(null);
+  const [isDocumentsDialogOpen, setIsDocumentsDialogOpen] = useState(false);
 
   const t = translations[language as keyof typeof translations] || translations.en;
 
@@ -727,6 +747,16 @@ export default function Admin() {
   const { data: clients, isLoading: clientsLoading } = useQuery<ClientWithDetails[]>({
     queryKey: ["/api/admin/clients"],
     enabled: !!user && (user.role === "admin" || user.role === "preparer"),
+  });
+
+  const { data: clientDocuments, isLoading: documentsLoading } = useQuery<{
+    client: User;
+    documents: Document[];
+    cases: TaxCase[];
+    appointments: Appointment[];
+  }>({
+    queryKey: ["/api/admin/clients", selectedClient?.id],
+    enabled: !!selectedClient && !!user && (user.role === "admin" || user.role === "preparer"),
   });
 
   const { data: cases, isLoading: casesLoading } = useQuery<CaseWithClient[]>({
@@ -1293,6 +1323,7 @@ export default function Admin() {
                           <TableHead>{t.cases}</TableHead>
                           <TableHead>Docs</TableHead>
                           <TableHead>{t.registration}</TableHead>
+                          <TableHead>{t.actions}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1326,6 +1357,19 @@ export default function Admin() {
                               {format(new Date(client.createdAt), "d MMM yyyy", {
                                 locale: getDateLocale(language),
                               })}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedClient(client);
+                                  setIsDocumentsDialogOpen(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-2" />
+                                {t.viewDocuments}
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1673,6 +1717,80 @@ export default function Admin() {
                   t.saveChanges
                 )}
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialogo de Documentos del Cliente */}
+        <Dialog open={isDocumentsDialogOpen} onOpenChange={setIsDocumentsDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {t.clientDocuments} - {selectedClient?.name}
+              </DialogTitle>
+              <DialogDescription>
+                {t.clientDocumentsDesc}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              {documentsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : clientDocuments?.documents && clientDocuments.documents.length > 0 ? (
+                <div className="space-y-3">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t.documentName}</TableHead>
+                        <TableHead>{t.category}</TableHead>
+                        <TableHead>{t.uploadedAt}</TableHead>
+                        <TableHead>{t.size}</TableHead>
+                        <TableHead>{t.actions}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {clientDocuments.documents.map((doc) => (
+                        <TableRow key={doc.id}>
+                          <TableCell className="font-medium">{doc.fileName}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{doc.category || "-"}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {format(new Date(doc.createdAt), "d MMM yyyy HH:mm", {
+                              locale: getDateLocale(language),
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(2)} KB` : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (doc.filePath) {
+                                  window.open(`/api/documents/${doc.id}/download`, "_blank");
+                                }
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              {t.download}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                  <p className="text-muted-foreground">{t.noDocuments}</p>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>

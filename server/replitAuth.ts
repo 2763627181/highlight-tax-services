@@ -1,3 +1,7 @@
+// Cargar variables de entorno desde .env
+import { config } from "dotenv";
+config();
+
 import * as client from "openid-client";
 import { Strategy, type VerifyFunction } from "openid-client/passport";
 import passport from "passport";
@@ -14,8 +18,14 @@ if (!JWT_SECRET) {
   throw new Error("SESSION_SECRET must be set in environment variables");
 }
 
+// Verificar si Replit OAuth está configurado
+const isReplitAuthConfigured = !!(process.env.REPL_ID && process.env.REPL_ID.trim() !== '');
+
 const getOidcConfig = memoize(
   async () => {
+    if (!isReplitAuthConfigured) {
+      throw new Error("Replit OAuth is not configured. REPL_ID must be set in environment variables.");
+    }
     return await client.discovery(
       new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
       process.env.REPL_ID!
@@ -143,6 +153,13 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Si Replit OAuth no está configurado, no configurar las rutas OAuth
+  if (!isReplitAuthConfigured) {
+    console.warn('[ReplitAuth] Replit OAuth is not configured. OAuth routes will not be available.');
+    console.warn('[ReplitAuth] To enable OAuth, set REPL_ID in your environment variables.');
+    return;
+  }
 
   const config = await getOidcConfig();
 

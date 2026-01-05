@@ -38,7 +38,8 @@ import path from "path";
 import fs from "fs";
 import { z } from "zod";
 import rateLimit from "express-rate-limit";
-import { setupAuth } from "./replitAuth";
+// Replit OAuth removido - no necesario para el proyecto
+// import { setupAuth } from "./replitAuth";
 import { 
   sendContactFormNotification, 
   sendWelcomeEmail, 
@@ -49,6 +50,7 @@ import {
 } from "./email";
 import crypto from "crypto";
 import { wsService } from "./websocket";
+import { uploadToR2, isR2Configured, isR2Key } from "./r2";
 
 // =============================================================================
 // CONFIGURACIÓN DE SEGURIDAD
@@ -553,10 +555,8 @@ export async function registerRoutes(
       console.log('[Routes] Skipping WebSocket (serverless mode or wsService not available)');
     }
     
-    // Configurar OAuth con Replit Auth (Google, GitHub, Apple)
-    console.log('[Routes] Setting up OAuth authentication...');
-    await setupAuth(app);
-    console.log('[Routes] OAuth authentication setup complete');
+    // Replit OAuth removido - no necesario para el proyecto
+    // Las rutas OAuth de Replit han sido eliminadas
   } catch (error) {
     console.error('[Routes] Error during route registration setup:', error);
     throw error;
@@ -1421,12 +1421,60 @@ export async function registerRoutes(
         // Validar categoría
         const docCategory = VALID_CATEGORIES.includes(category) ? category : "other";
 
+        // Verificar que R2 esté configurado
+        if (!isR2Configured) {
+          // Eliminar archivo temporal
+          try {
+            await fs.promises.unlink(req.file.path);
+          } catch (unlinkError) {
+            console.warn(`[Routes] No se pudo eliminar archivo temporal ${req.file.path}:`, unlinkError);
+          }
+          res.status(500).json({ 
+            message: "Cloudflare R2 no está configurado. Por favor, configura las variables de entorno R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY y R2_BUCKET_NAME." 
+          });
+          return;
+        }
+
+        // Subir archivo a R2 (obligatorio)
+        let filePath: string;
+        console.log("[Routes] Intentando subir archivo a Cloudflare R2...");
+        try {
+          // Subir a R2
+          const r2Key = await uploadToR2(req.file.path, req.file.originalname, req.file.mimetype);
+          filePath = r2Key;
+          console.log(`[Routes] Archivo subido exitosamente a R2: ${r2Key}`);
+          
+          // Limpiar archivo temporal después de subir a R2
+          try {
+            await fs.promises.unlink(req.file.path);
+            console.log(`[Routes] Archivo temporal eliminado: ${req.file.path}`);
+          } catch (unlinkError) {
+            console.warn(`[Routes] No se pudo eliminar archivo temporal ${req.file.path}:`, unlinkError);
+          }
+        } catch (r2Error) {
+          // Eliminar archivo temporal en caso de error
+          try {
+            await fs.promises.unlink(req.file.path);
+          } catch (unlinkError) {
+            console.warn(`[Routes] No se pudo eliminar archivo temporal ${req.file.path}:`, unlinkError);
+          }
+          
+          console.error("[Routes] Error subiendo a R2:", r2Error);
+          console.error("[Routes] Detalles del error:", r2Error instanceof Error ? r2Error.message : String(r2Error));
+          
+          res.status(500).json({ 
+            message: "Error al subir el archivo a Cloudflare R2. Por favor, verifica la configuración de R2 o intenta nuevamente más tarde.",
+            error: r2Error instanceof Error ? r2Error.message : String(r2Error)
+          });
+          return;
+        }
+
         // Crear registro de documento
         const document = await storage.createDocument({
           caseId: validCaseId,
           clientId: authReq.user!.id,
           fileName: req.file.originalname,
-          filePath: req.file.path,
+          filePath: filePath,
           fileType: req.file.mimetype,
           fileSize: req.file.size,
           category: docCategory,
@@ -1509,13 +1557,25 @@ export async function registerRoutes(
         return;
       }
 
-      // Verificar que el archivo existe
-      if (!fs.existsSync(document.filePath)) {
-        res.status(404).json({ message: "Archivo no encontrado" });
-        return;
+      // Verificar que el archivo existe y descargarlo
+      if (isR2Key(document.filePath)) {
+        // Archivo en R2 - generar URL firmada
+        try {
+          const { getR2SignedUrl } = await import("./r2");
+          const signedUrl = await getR2SignedUrl(document.filePath, 3600); // 1 hora de validez
+          res.redirect(signedUrl);
+        } catch (r2Error) {
+          console.error("[Routes] Error generando URL firmada de R2:", r2Error);
+          res.status(500).json({ message: "Error al generar URL de descarga" });
+        }
+      } else {
+        // Archivo local - verificar existencia y descargar
+        if (!fs.existsSync(document.filePath)) {
+          res.status(404).json({ message: "Archivo no encontrado" });
+          return;
+        }
+        res.download(document.filePath, document.fileName);
       }
-
-      res.download(document.filePath, document.fileName);
     } catch (error) {
       console.error("Error de descarga:", error);
       res.status(500).json({ message: "Error al descargar documento" });

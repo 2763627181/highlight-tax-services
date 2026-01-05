@@ -149,3 +149,4 @@ Si tu aplicación usa el Service Role Key, las políticas RLS se omiten automát
 **Después de aplicar estas políticas, los mensajes críticos deberían desaparecer del dashboard de Supabase.**
 
 
+
