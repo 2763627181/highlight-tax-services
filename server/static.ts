@@ -52,15 +52,14 @@ export function serveStatic(app: Express) {
 
   // fall through to index.html if the file doesn't exist (SPA routing)
   // PERO solo para rutas que NO sean API
-  app.use("*", (req, res) => {
+  app.use("*", (req, res, next) => {
     // NO intentar servir index.html para rutas API
     if (req.path.startsWith('/api/')) {
       // Si llegamos aquí, es una ruta API no encontrada
       // Esto no debería pasar porque las rutas API deberían estar manejadas antes
-      if (!res.headersSent) {
-        res.status(404).json({ message: "Ruta API no encontrada" });
-      }
-      return;
+      console.warn('[Static] Catch-all captured API route:', req.method, req.path, '- This should not happen!');
+      // NO responder aquí - dejar que el catch-all de API lo maneje
+      return next();
     }
     
     // Para rutas no-API, intentar servir index.html (SPA routing)

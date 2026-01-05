@@ -5,6 +5,7 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
 }
 
 import { drizzle } from "drizzle-orm/node-postgres";
+import { sql } from "drizzle-orm";
 import pg from "pg";
 import * as schema from "../shared/schema";
 
@@ -33,4 +34,34 @@ if (process.env.NODE_ENV === 'production' || process.env.DATABASE_URL?.includes(
 }
 
 export const pool = new Pool(poolConfig);
+
+// Agregar logging para conexiones de base de datos
+pool.on('connect', () => {
+  console.log('[DB] New database connection established');
+});
+
+pool.on('error', (err) => {
+  console.error('[DB] Database pool error:', err);
+});
+
+pool.on('acquire', () => {
+  console.log('[DB] Connection acquired from pool');
+});
+
+pool.on('release', () => {
+  console.log('[DB] Connection released back to pool');
+});
+
 export const db = drizzle(pool, { schema });
+
+// Función para verificar conexión a la base de datos
+export async function testConnection() {
+  try {
+    await db.execute(sql`SELECT 1`);
+    console.log('[DB] Database connection test: OK');
+    return true;
+  } catch (error) {
+    console.error('[DB] Database connection test: FAILED', error);
+    return false;
+  }
+}

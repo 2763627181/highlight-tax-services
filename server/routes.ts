@@ -1008,6 +1008,14 @@ export async function registerRoutes(
    * - Comparación de contraseña con timing constante
    */
   app.post("/api/auth/login", finalAuthLimiter, async (req: Request, res: Response) => {
+    console.log('[Routes] /api/auth/login - Request received:', {
+      method: req.method,
+      path: req.path,
+      url: req.url,
+      hasBody: !!req.body,
+      email: req.body?.email ? '***' : 'missing'
+    });
+    
     try {
       // Asegurar que siempre devolvamos JSON
       res.setHeader('Content-Type', 'application/json');
@@ -1015,6 +1023,7 @@ export async function registerRoutes(
       // Validar datos de entrada
       const result = loginSchema.safeParse(req.body);
       if (!result.success) {
+        console.log('[Routes] /api/auth/login - Validation failed:', result.error.errors);
         if (!res.headersSent) {
           res.status(400).json({ 
             message: "Validación fallida", 
@@ -1025,9 +1034,27 @@ export async function registerRoutes(
       }
 
       const { email, password } = result.data;
+      console.log('[Routes] /api/auth/login - Attempting login for:', email);
+
+      // Verificar conexión a la base de datos antes de continuar
+      try {
+        await db.execute(sql`SELECT 1`);
+        console.log('[Routes] /api/auth/login - Database connection OK');
+      } catch (dbError) {
+        console.error('[Routes] /api/auth/login - Database connection error:', dbError);
+        if (!res.headersSent) {
+          res.status(503).json({ 
+            message: "Error de conexión a la base de datos",
+            error: process.env.NODE_ENV !== 'production' ? (dbError as Error).message : undefined
+          });
+        }
+        return;
+      }
 
       // Buscar usuario
+      console.log('[Routes] /api/auth/login - Searching for user by email...');
       const user = await storage.getUserByEmail(email);
+      console.log('[Routes] /api/auth/login - User found:', user ? `id=${user.id}` : 'not found');
       if (!user) {
         // Respuesta genérica para no revelar si el email existe
         if (!res.headersSent) {
@@ -1069,17 +1096,23 @@ export async function registerRoutes(
 
       // Asegurar que la respuesta se envíe correctamente
       if (!res.headersSent) {
+        console.log('[Routes] /api/auth/login - Sending success response');
         res.json({
           user: { id: user.id, email: user.email, role: user.role, name: user.name },
         });
+      } else {
+        console.warn('[Routes] /api/auth/login - Response already sent, cannot send success response');
       }
     } catch (error) {
-      console.error("Error de login:", error);
+      console.error('[Routes] /api/auth/login - Error:', error);
+      console.error('[Routes] /api/auth/login - Error stack:', (error as Error).stack);
       if (!res.headersSent) {
         res.status(500).json({ 
           message: "Error al iniciar sesión",
           error: process.env.NODE_ENV !== 'production' ? (error as Error).message : undefined
         });
+      } else {
+        console.warn('[Routes] /api/auth/login - Response already sent, cannot send error response');
       }
     }
   });
