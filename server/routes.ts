@@ -586,44 +586,67 @@ export async function registerRoutes(
   try {
     console.log('[Routes] Starting route registration...');
     
-    // CRITICAL FIX: Forzar evaluación de las constantes ANTES de validarlas
-    // Esto es necesario porque esbuild puede no inicializar las constantes del módulo
-    // en el orden correcto cuando hace el bundle, especialmente en Vercel
-    // Al acceder a las constantes, forzamos su evaluación inmediata
-    try {
-      // Forzar acceso a las constantes para que se evalúen
-      const _forceEval = [
-        authLimiter,
-        uploadLimiter,
-        contactLimiter,
-        messageLimiter,
-        upload,
-      ];
-      console.log('[Routes] Forced evaluation of middleware constants:', _forceEval.map(m => typeof m));
-    } catch (evalError) {
-      console.error('[Routes] Error evaluating middleware constants:', evalError);
+    // CRITICAL FIX: Inicializar middlewares dentro de la función para evitar problemas con esbuild
+    // Esto asegura que se ejecuten en el orden correcto, incluso cuando esbuild hace tree-shaking
+    console.log('[Routes] Initializing rate limiters...');
+    
+    // Inicializar rate limiters si no están definidos (fallback para esbuild)
+    const _authLimiter = authLimiter || rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+      message: { message: "Demasiados intentos de autenticación. Intente de nuevo en 15 minutos.", retryAfter: 15 },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    
+    const _uploadLimiter = uploadLimiter || rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 10,
+      message: { message: "Límite de carga de archivos alcanzado. Intente más tarde." },
+    });
+    
+    const _contactLimiter = contactLimiter || rateLimit({
+      windowMs: 60 * 60 * 1000,
+      max: 3,
+      message: { message: "Ha enviado demasiados mensajes. Intente más tarde." },
+    });
+    
+    const _messageLimiter = messageLimiter || rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 30,
+      message: { message: "Límite de mensajes alcanzado. Espere un momento." },
+    });
+    
+    // Asegurar que upload esté inicializado
+    let _upload = upload;
+    if (!_upload) {
+      console.warn('[Routes] upload is undefined, initializing fallback...');
+      _upload = multer({
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 10 * 1024 * 1024 },
+      });
     }
     
     // Verificar que los middlewares estén definidos (con logging detallado)
-    console.log('[Routes] Checking middlewares after forced evaluation...', {
-      authLimiter: typeof authLimiter,
-      uploadLimiter: typeof uploadLimiter,
-      contactLimiter: typeof contactLimiter,
-      messageLimiter: typeof messageLimiter,
+    console.log('[Routes] Checking middlewares after initialization...', {
+      authLimiter: typeof _authLimiter,
+      uploadLimiter: typeof _uploadLimiter,
+      contactLimiter: typeof _contactLimiter,
+      messageLimiter: typeof _messageLimiter,
       authenticateToken: typeof authenticateToken,
       requireAdmin: typeof requireAdmin,
-      upload: typeof upload,
+      upload: typeof _upload,
     });
     
     // Validar que todos los middlewares estén definidos antes de registrar rutas
     const requiredMiddlewares = {
-      authLimiter,
-      uploadLimiter,
-      contactLimiter,
-      messageLimiter,
+      authLimiter: _authLimiter,
+      uploadLimiter: _uploadLimiter,
+      contactLimiter: _contactLimiter,
+      messageLimiter: _messageLimiter,
       authenticateToken,
       requireAdmin,
-      upload,
+      upload: _upload,
     };
     
     const missingMiddlewares: string[] = [];
@@ -652,14 +675,22 @@ export async function registerRoutes(
     }
     
     // Validar que upload.single esté disponible
-    if (!upload || typeof upload.single !== 'function') {
+    if (!_upload || typeof _upload.single !== 'function') {
       const errorMsg = 'upload.single is not available. Multer upload middleware is not properly initialized.';
       console.error('[Routes]', errorMsg);
-      console.error('[Routes] upload object:', upload);
+      console.error('[Routes] upload object:', _upload);
       throw new Error(errorMsg);
     }
     
     console.log('[Routes] All middlewares validated successfully');
+    
+    // Usar las variables locales en lugar de las constantes del módulo
+    // Esto asegura que funcionen incluso si esbuild no las inicializa correctamente
+    const finalAuthLimiter = _authLimiter;
+    const finalUploadLimiter = _uploadLimiter;
+    const finalContactLimiter = _contactLimiter;
+    const finalMessageLimiter = _messageLimiter;
+    const finalUpload = _upload;
     
     // Inicializar WebSocket solo si hay un servidor HTTP (no en serverless)
     if (httpServer && wsService) {
@@ -867,7 +898,7 @@ export async function registerRoutes(
    * - Envía email de bienvenida
    * - Registra actividad en log
    */
-  app.post("/api/auth/register", authLimiter, async (req: Request, res: Response) => {
+  app.post("/api/auth/register", finalAuthLimiter, async (req: Request, res: Response) => {
     // Asegurar que siempre devolvamos JSON
     res.setHeader('Content-Type', 'application/json');
     
@@ -977,7 +1008,7 @@ export async function registerRoutes(
    * - Respuesta genérica para credenciales inválidas
    * - Comparación de contraseña con timing constante
    */
-  app.post("/api/auth/login", authLimiter, async (req: Request, res: Response) => {
+  app.post("/api/auth/login", finalAuthLimiter, async (req: Request, res: Response) => {
     try {
       // Validar datos de entrada
       const result = loginSchema.safeParse(req.body);
@@ -1081,7 +1112,7 @@ export async function registerRoutes(
    * @returns {object} Usuario autenticado
    * @sets Cookie 'token' con JWT válido por 7 días
    */
-  app.post("/api/auth/oauth", authLimiter, async (req: Request, res: Response) => {
+  app.post("/api/auth/oauth", finalAuthLimiter, async (req: Request, res: Response) => {
     try {
       const { email, name, provider, providerId } = req.body;
 
@@ -1179,7 +1210,7 @@ export async function registerRoutes(
    * @security Rate limited para prevenir abuso
    * @sideeffects Envía email con token de recuperación
    */
-  app.post("/api/auth/forgot-password", authLimiter, async (req: Request, res: Response) => {
+  app.post("/api/auth/forgot-password", finalAuthLimiter, async (req: Request, res: Response) => {
     try {
       const { email } = req.body;
       
@@ -1246,7 +1277,7 @@ export async function registerRoutes(
    * @body {string} password - Nueva contraseña
    * @security Token de un solo uso, expira en 30 minutos
    */
-  app.post("/api/auth/reset-password", authLimiter, async (req: Request, res: Response) => {
+  app.post("/api/auth/reset-password", finalAuthLimiter, async (req: Request, res: Response) => {
     try {
       const { token, password } = req.body;
       
@@ -1351,7 +1382,7 @@ export async function registerRoutes(
    * @security Rate limited: 3 envíos / hora
    * @sideeffects Envía notificación por email a admin
    */
-  app.post("/api/contact", contactLimiter, async (req: Request, res: Response) => {
+  app.post("/api/contact", finalContactLimiter, async (req: Request, res: Response) => {
     // Asegurar que siempre devolvamos JSON
     res.setHeader('Content-Type', 'application/json');
     
@@ -1519,13 +1550,13 @@ export async function registerRoutes(
    * - Envía notificación WebSocket
    */
   // Validar que upload.single esté disponible antes de usarlo
-  if (!upload || typeof upload.single !== 'function') {
+  if (!finalUpload || typeof finalUpload.single !== 'function') {
     const errorMsg = "upload.single is not available. Cannot register /api/documents/upload route.";
     console.error('[Routes]', errorMsg);
     throw new Error(errorMsg);
   }
   
-  const uploadSingle = upload.single("file");
+  const uploadSingle = finalUpload.single("file");
   if (!uploadSingle || typeof uploadSingle !== 'function') {
     const errorMsg = "upload.single('file') returned invalid value. Cannot register /api/documents/upload route.";
     console.error('[Routes]', errorMsg);
@@ -1536,14 +1567,14 @@ export async function registerRoutes(
   if (!authenticateToken || typeof authenticateToken !== 'function') {
     throw new Error("authenticateToken is not a function. Cannot register /api/documents/upload route.");
   }
-  if (!uploadLimiter || typeof uploadLimiter !== 'function') {
+  if (!finalUploadLimiter || typeof finalUploadLimiter !== 'function') {
     throw new Error("uploadLimiter is not a function. Cannot register /api/documents/upload route.");
   }
 
   app.post(
     "/api/documents/upload", 
     authenticateToken, 
-    uploadLimiter,
+    finalUploadLimiter,
     uploadSingle, 
     async (req: Request, res: Response) => {
       const authReq = req as AuthRequest;
@@ -1928,7 +1959,7 @@ export async function registerRoutes(
    * @security Rate limited: 30 mensajes / 15 min
    * @sideeffects Notifica al destinatario por WebSocket
    */
-  app.post("/api/messages", authenticateToken, messageLimiter, async (req: Request, res: Response) => {
+  app.post("/api/messages", authenticateToken, finalMessageLimiter, async (req: Request, res: Response) => {
     const authReq = req as AuthRequest;
     try {
       // Validar datos de entrada
