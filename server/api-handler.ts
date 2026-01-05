@@ -64,17 +64,21 @@ async function handlerFn(req: any, res: any) {
       app = await createApp(undefined);
       console.log('[API] Express app created successfully');
       
-      // En producción, servir archivos estáticos DESPUÉS de las rutas API
-      // Esto asegura que /api/* tenga prioridad sobre archivos estáticos
-      // @ts-ignore - process está disponible en runtime
+      // En Vercel, NO servir archivos estáticos desde el handler
+      // Vercel los sirve automáticamente desde outputDirectory (dist/public)
+      // Solo servir estáticos en desarrollo local
+      const isVercel = !!process.env.VERCEL;
       const isProduction = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production';
-      if (isProduction) {
+      
+      if (!isVercel && !isProduction) {
+        // Solo en desarrollo local, servir archivos estáticos
         try {
           serveStatic(app);
         } catch (staticError) {
           console.warn('[API] Warning: Could not serve static files:', staticError);
-          // No fallar si no se pueden servir archivos estáticos
         }
+      } else {
+        console.log('[API] Skipping static file serving - Vercel handles this automatically');
       }
       
       // Catch-all para rutas API no encontradas (después de serveStatic)
@@ -169,64 +173,21 @@ async function handlerFn(req: any, res: any) {
     console.log(`[API] Request completed: ${req.method} ${path} in ${duration}ms`);
     
     // Asegurar que la respuesta se haya enviado
-    // SOLO para rutas API - no interferir con rutas del frontend
+    // SOLO para rutas API
     if (!res.headersSent && !res.writableEnded) {
-      // Solo enviar respuesta por defecto para rutas API
       if (path.startsWith('/api/')) {
-        console.warn('[API] Warning: API route response not sent, sending default response');
-        res.status(200).json({ message: 'OK' });
+        // Rutas API sin respuesta - enviar error
+        console.warn('[API] Warning: API route response not sent:', path);
+        res.status(500).json({ 
+          error: 'Internal server error',
+          message: 'The API route did not send a response'
+        });
       } else {
-        // Para rutas no-API, esto no debería pasar en Vercel
-        // porque Vercel debería servir los archivos estáticos automáticamente
-        // Si llegamos aquí, es un error de configuración
-        console.error('[API] ERROR: Non-API route reached handler without response:', path);
-        console.error('[API] This should not happen in Vercel. Check vercel.json configuration.');
-        
-        // Intentar servir index.html como último recurso
-        try {
-          const fs = await import('fs');
-          const pathModule = await import('path');
-          const possiblePaths = [
-            pathModule.resolve('/var/task', 'dist', 'public', 'index.html'),
-            pathModule.resolve('/var/task', 'public', 'index.html'),
-            pathModule.resolve(process.cwd(), 'dist', 'public', 'index.html'),
-            pathModule.resolve(process.cwd(), 'public', 'index.html'),
-            pathModule.resolve(process.cwd(), '..', 'dist', 'public', 'index.html'),
-          ];
-          
-          let indexPath: string | null = null;
-          for (const possiblePath of possiblePaths) {
-            if (fs.existsSync(possiblePath)) {
-              indexPath = possiblePath;
-              break;
-            }
-          }
-          
-          if (indexPath) {
-            console.log('[API] Found index.html, serving as fallback:', indexPath);
-            res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            const html = fs.readFileSync(indexPath, 'utf-8');
-            res.send(html);
-          } else {
-            console.error('[API] index.html not found in any of these paths:', possiblePaths);
-            console.error('[API] Current working directory:', process.cwd());
-            res.status(404).json({ 
-              error: 'Frontend not found',
-              message: 'The frontend files were not found. Please ensure the build completed successfully.',
-              debug: {
-                cwd: process.cwd(),
-                pathsChecked: possiblePaths,
-                isVercel: !!process.env.VERCEL
-              }
-            });
-          }
-        } catch (staticError) {
-          console.error('[API] Error serving static file:', staticError);
-          res.status(500).json({ 
-            error: 'Error serving frontend',
-            message: 'Could not serve the frontend application'
-          });
-        }
+        // Rutas no-API no deberían llegar aquí en Vercel
+        // Si llegan, es porque Vercel no las manejó (error de configuración)
+        console.error('[API] ERROR: Non-API route reached handler:', path);
+        console.error('[API] This should not happen. Vercel should serve static files automatically.');
+        // No responder - dejar que Vercel maneje el 404
       }
     }
     

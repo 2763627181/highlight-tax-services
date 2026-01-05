@@ -1,8 +1,6 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile, mkdir, copyFile, writeFile } from "fs/promises";
-import { existsSync, readdirSync, statSync } from "fs";
-import path from "path";
+import { rm, readFile } from "fs/promises";
 
 const allowlist = [
   "@google/generative-ai",
@@ -82,53 +80,8 @@ async function buildAll() {
     logLevel: "info",
   });
 
-  // Copiar archivos estáticos a api/public para que el handler pueda acceder a ellos
-  console.log("copying static files to api/public for Vercel...");
-  const publicDir = "dist/public";
-  const apiPublicDir = "api/public";
-  
-  try {
-    // Crear directorio si no existe
-    await mkdir(apiPublicDir, { recursive: true });
-    
-    // Copiar index.html
-    const indexPath = path.join(publicDir, "index.html");
-    const apiIndexPath = path.join(apiPublicDir, "index.html");
-    if (existsSync(indexPath)) {
-      await copyFile(indexPath, apiIndexPath);
-      console.log("Copied index.html to api/public");
-    }
-    
-    // Copiar carpeta assets si existe
-    const assetsDir = path.join(publicDir, "assets");
-    const apiAssetsDir = path.join(apiPublicDir, "assets");
-    if (existsSync(assetsDir)) {
-      await mkdir(apiAssetsDir, { recursive: true });
-      const files = readdirSync(assetsDir);
-      for (const file of files) {
-        const srcPath = path.join(assetsDir, file);
-        const destPath = path.join(apiAssetsDir, file);
-        const stat = statSync(srcPath);
-        if (stat.isFile()) {
-          await copyFile(srcPath, destPath);
-        }
-      }
-      console.log("Copied assets directory to api/public");
-    }
-    
-    // Copiar favicon si existe
-    const faviconPath = path.join(publicDir, "favicon.png");
-    const apiFaviconPath = path.join(apiPublicDir, "favicon.png");
-    if (existsSync(faviconPath)) {
-      await copyFile(faviconPath, apiFaviconPath);
-      console.log("Copied favicon.png to api/public");
-    }
-  } catch (error) {
-    console.warn("Warning: Could not copy static files to api/public:", error);
-    console.warn("This is not critical - Vercel should serve files from dist/public automatically");
-  }
-
   console.log("build complete!");
+  console.log("Note: Vercel will serve static files from dist/public automatically");
 }
 
 buildAll().catch((err) => {
