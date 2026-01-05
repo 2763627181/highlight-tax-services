@@ -1,8 +1,5 @@
-// Cargar variables de entorno desde .env antes de cualquier otra cosa
-// Solo cargar dotenv en desarrollo (Vercel inyecta variables automáticamente)
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  import("dotenv").then(({ config }) => config());
-}
+// Nota: dotenv se carga en server/index.ts ANTES de importar este módulo
+// Si DATABASE_URL no está disponible aquí, verifica que index.ts cargue dotenv correctamente
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import { sql } from "drizzle-orm";
@@ -60,8 +57,27 @@ export async function testConnection() {
     await db.execute(sql`SELECT 1`);
     console.log('[DB] Database connection test: OK');
     return true;
-  } catch (error) {
-    console.error('[DB] Database connection test: FAILED', error);
+  } catch (error: any) {
+    console.error('[DB] Database connection test: FAILED');
+    
+    // Proporcionar información más detallada sobre el error
+    if (error.code === 'XX000' || error.message?.includes('Tenant or user not found')) {
+      console.error('[DB] Error: "Tenant or user not found"');
+      console.error('[DB] Posibles causas:');
+      console.error('[DB]   1. La contraseña en DATABASE_URL es incorrecta');
+      console.error('[DB]   2. El proyecto de Supabase está pausado');
+      console.error('[DB]   3. La URL de conexión tiene el formato incorrecto');
+      console.error('[DB]');
+      console.error('[DB] Para conexión directa, usa el formato:');
+      console.error('[DB]   postgresql://postgres:[PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres');
+      console.error('[DB] O verifica en Supabase Dashboard → Settings → Database → Connection string');
+    } else {
+      console.error('[DB] Error:', error.message || error);
+      if (error.code) {
+        console.error('[DB] Error code:', error.code);
+      }
+    }
+    
     return false;
   }
 }

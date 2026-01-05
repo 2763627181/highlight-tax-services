@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import hpp from "hpp";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { registerRoutes } from "./routes";
 import type { Server } from "http";
 
@@ -115,21 +115,26 @@ export async function createApp(httpServer?: Server) {
   app.use(hpp());
 
   // Key generator para rate limiting en Vercel
+  // Usa el helper ipKeyGenerator de express-rate-limit para manejo correcto de IPv6
   const rateLimitKeyGenerator = (req: Request): string => {
+    // Obtener IP del request (maneja proxies como Vercel)
     const xForwardedFor = req.headers['x-forwarded-for'];
     const xRealIp = req.headers['x-real-ip'];
     const cfConnectingIp = req.headers['cf-connecting-ip'];
     
+    let ip = 'unknown';
     if (xForwardedFor && typeof xForwardedFor === 'string') {
-      return xForwardedFor.split(',')[0].trim();
+      ip = xForwardedFor.split(',')[0].trim();
+    } else if (xRealIp && typeof xRealIp === 'string') {
+      ip = xRealIp;
+    } else if (cfConnectingIp && typeof cfConnectingIp === 'string') {
+      ip = cfConnectingIp;
+    } else {
+      ip = req.ip || req.socket?.remoteAddress || 'unknown';
     }
-    if (xRealIp && typeof xRealIp === 'string') {
-      return xRealIp;
-    }
-    if (cfConnectingIp && typeof cfConnectingIp === 'string') {
-      return cfConnectingIp;
-    }
-    return req.ip || req.socket?.remoteAddress || 'unknown';
+    
+    // Usar ipKeyGenerator para manejar IPv6 correctamente
+    return ipKeyGenerator(ip);
   };
 
   const globalLimiter = rateLimit({
@@ -142,11 +147,6 @@ export async function createApp(httpServer?: Server) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: rateLimitKeyGenerator,
-    validate: {
-      trustProxy: false,
-      xForwardedForHeader: false,
-      ip: false,
-    },
     skip: (req) => {
       return req.path.startsWith('/assets') || 
              req.path.startsWith('/node_modules') ||

@@ -230,30 +230,54 @@ async function handlerFn(req: any, res: any) {
     // Ejecutar el handler directamente
     // El método se restaurará en el middleware de Express usando el header
     // Vercel maneja el timeout automáticamente según maxDuration
+    
+    // Interceptar res.end para detectar cuando la respuesta se completa
+    let responseComplete = false;
+    const originalEnd = res.end;
+    
+    // Crear promesa que se resuelve cuando res.end se llama
+    const responsePromise = new Promise<void>((resolve) => {
+      res.end = function(...args: any[]) {
+        responseComplete = true;
+        const result = originalEnd.apply(this, args);
+        resolve();
+        return result;
+      };
+    });
+    
+    // Ejecutar el handler
     const handlerResult = await handler(req, res);
+    
+    // Si la respuesta ya fue enviada, marcar como completa
+    if (res.headersSent || res.writableEnded || res.finished) {
+      responseComplete = true;
+    }
+    
+    // Esperar un poco a que la respuesta se complete (máximo 500ms)
+    // Esto permite que Express termine de procesar antes de verificar
+    await Promise.race([
+      responsePromise,
+      new Promise(resolve => setTimeout(resolve, 500))
+    ]);
     
     const duration = Date.now() - startTime;
     const finalPath = req.path || req.url || path;
     
-    // Verificar si la respuesta fue enviada (con un pequeño delay para que Express termine)
-    // Solo verificar si no se ha enviado después de un tiempo razonable
-    if (!res.headersSent && !res.writableEnded) {
-      // Esperar un poco más para que Express termine de procesar
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+    // Verificar si la respuesta fue enviada
+    // Solo mostrar warning si realmente no se envió nada
+    const isResponseSent = res.headersSent || res.writableEnded || res.finished || responseComplete;
+    
+    if (!isResponseSent) {
+      console.warn(`[API] Warning: API route response not sent: ${req.method} ${finalPath}`);
+      // Solo enviar respuesta de error si realmente no se envió nada
       if (!res.headersSent && !res.writableEnded) {
-        console.warn(`[API] Warning: API route response not sent: ${req.method} ${finalPath}`);
-        if (!res.headersSent) {
-          res.status(500).json({ 
-            error: 'Internal server error',
-            message: 'The API route did not send a response'
-          });
-        }
-      } else {
-        console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
+        res.status(500).json({ 
+          error: 'Internal server error',
+          message: 'The API route did not send a response'
+        });
       }
     } else {
-      console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms`);
+      console.log(`[API] Request completed: ${req.method} ${finalPath} in ${duration}ms (status: ${res.statusCode || 'unknown'})`);
     }
     
     return handlerResult;

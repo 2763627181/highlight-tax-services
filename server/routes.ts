@@ -37,7 +37,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { z } from "zod";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 // Replit OAuth removido - no necesario para el proyecto
 // import { setupAuth } from "./replitAuth";
 import { 
@@ -184,32 +184,27 @@ const caseUpdateSchema = z.object({
  * 
  * 5 intentos cada 15 minutos por IP
  */
-// Key generator personalizado para rate limiting en Vercel
-// Maneja correctamente los proxies y headers X-Forwarded-For
+// Key generator usando el helper ipKeyGenerator de express-rate-limit
+// Maneja correctamente IPv6 y proxies como Vercel
 const rateLimitKeyGenerator = (req: Request): string => {
-  // Intentar obtener IP de diferentes fuentes (Vercel, proxies, etc.)
+  // Obtener IP del request (maneja proxies como Vercel)
   const xForwardedFor = req.headers['x-forwarded-for'];
   const xRealIp = req.headers['x-real-ip'];
-  const cfConnectingIp = req.headers['cf-connecting-ip']; // Cloudflare
+  const cfConnectingIp = req.headers['cf-connecting-ip'];
   
-  // Si hay X-Forwarded-For, tomar la primera IP (la original del cliente)
+  let ip = 'unknown';
   if (xForwardedFor && typeof xForwardedFor === 'string') {
-    return xForwardedFor.split(',')[0].trim();
+    ip = xForwardedFor.split(',')[0].trim();
+  } else if (xRealIp && typeof xRealIp === 'string') {
+    ip = xRealIp;
+  } else if (cfConnectingIp && typeof cfConnectingIp === 'string') {
+    ip = cfConnectingIp;
+  } else {
+    ip = req.ip || req.socket?.remoteAddress || 'unknown';
   }
   
-  // Si hay X-Real-IP, usarlo
-  if (xRealIp && typeof xRealIp === 'string') {
-    return xRealIp;
-  }
-  
-  // Si hay Cloudflare IP, usarlo
-  if (cfConnectingIp && typeof cfConnectingIp === 'string') {
-    return cfConnectingIp;
-  }
-  
-  // Fallback a req.ip (requiere trust proxy configurado)
-  // O usar un identificador basado en el path si no hay IP disponible
-  return req.ip || req.socket?.remoteAddress || 'unknown';
+  // Usar ipKeyGenerator para manejar IPv6 correctamente
+  return ipKeyGenerator(ip);
 };
 
 const authLimiter = rateLimit({
@@ -223,12 +218,6 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   // Key generator personalizado para Vercel
   keyGenerator: rateLimitKeyGenerator,
-  // Deshabilitar validaciones estrictas para proxies
-  validate: {
-    trustProxy: false, // Ya lo manejamos manualmente
-    xForwardedForHeader: false,
-    ip: false,
-  },
   handler: (req: Request, res: Response) => {
     // Asegurar que siempre devolvamos JSON con Content-Type correcto
     // Fix: Previene error 'Unexpected token' cuando rate limiter bloquea
@@ -253,11 +242,6 @@ const uploadLimiter = rateLimit({
     message: "Límite de carga de archivos alcanzado. Intente más tarde." 
   },
   keyGenerator: rateLimitKeyGenerator,
-  validate: {
-    trustProxy: false,
-    xForwardedForHeader: false,
-    ip: false,
-  },
 });
 
 /**
@@ -273,11 +257,6 @@ const contactLimiter = rateLimit({
     message: "Ha enviado demasiados mensajes. Intente más tarde." 
   },
   keyGenerator: rateLimitKeyGenerator,
-  validate: {
-    trustProxy: false,
-    xForwardedForHeader: false,
-    ip: false,
-  },
 });
 
 /**
@@ -293,11 +272,6 @@ const messageLimiter = rateLimit({
     message: "Límite de mensajes alcanzado. Espere un momento." 
   },
   keyGenerator: rateLimitKeyGenerator,
-  validate: {
-    trustProxy: false,
-    xForwardedForHeader: false,
-    ip: false,
-  },
 });
 
 // =============================================================================
