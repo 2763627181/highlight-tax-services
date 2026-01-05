@@ -572,8 +572,26 @@ export async function registerRoutes(
   try {
     console.log('[Routes] Starting route registration...');
     
+    // CRITICAL FIX: Forzar evaluación de las constantes ANTES de validarlas
+    // Esto es necesario porque esbuild puede no inicializar las constantes del módulo
+    // en el orden correcto cuando hace el bundle, especialmente en Vercel
+    // Al acceder a las constantes, forzamos su evaluación inmediata
+    try {
+      // Forzar acceso a las constantes para que se evalúen
+      const _forceEval = [
+        authLimiter,
+        uploadLimiter,
+        contactLimiter,
+        messageLimiter,
+        upload,
+      ];
+      console.log('[Routes] Forced evaluation of middleware constants:', _forceEval.map(m => typeof m));
+    } catch (evalError) {
+      console.error('[Routes] Error evaluating middleware constants:', evalError);
+    }
+    
     // Verificar que los middlewares estén definidos (con logging detallado)
-    console.log('[Routes] Checking middlewares...', {
+    console.log('[Routes] Checking middlewares after forced evaluation...', {
       authLimiter: typeof authLimiter,
       uploadLimiter: typeof uploadLimiter,
       contactLimiter: typeof contactLimiter,
