@@ -71,7 +71,7 @@
 ### 1. DATABASE_URL ⚠️ CRÍTICA
 **Formato correcto:**
 ```
-postgresql://postgres.pfqzfretadqjzjbimvkv:sethum-2zAbpe-bismek@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+postgresql://postgres.pfqzfretadqjzjbimvkv:R0CnJK4mKx9Mfj68@aws-0-us-east-1.pooler.supabase.com:6543/postgres
 ```
 
 **Verificar:**
@@ -125,7 +125,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 **Variables mínimas necesarias para que funcione:**
 ```env
-DATABASE_URL=postgresql://postgres.pfqzfretadqjzjbimvkv:sethum-2zAbpe-bismek@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.pfqzfretadqjzjbimvkv:R0CnJK4mKx9Mfj68@aws-0-us-east-1.pooler.supabase.com:6543/postgres
 SESSION_SECRET=tu-secret-de-32-caracteres-minimo
 NODE_ENV=production
 ```

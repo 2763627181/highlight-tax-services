@@ -55,7 +55,7 @@ C:\Users\joshu\highlight-tax-services
 
 **📝 El archivo `.env` debe quedar así:**
 ```env
-DATABASE_URL=postgresql://postgres.pfqzfretadqjzjbimvkv:sethum-2zAbpe-bismek@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.pfqzfretadqjzjbimvkv:R0CnJK4mKx9Mfj68@aws-0-us-east-1.pooler.supabase.com:6543/postgres
 SESSION_SECRET=tu-secret-generado-aqui
 NODE_ENV=development
 ```

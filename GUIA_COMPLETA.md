@@ -12,7 +12,7 @@ Crea un archivo `.env` en la raíz del proyecto con:
 
 ```env
 # Base de datos Supabase
-DATABASE_URL=postgresql://postgres.pfqzfretadqjzjbimvkv:sethum-2zAbpe-bismek@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://postgres.pfqzfretadqjzjbimvkv:R0CnJK4mKx9Mfj68@aws-0-us-east-1.pooler.supabase.com:6543/postgres
 
 # Secret para JWT tokens (genera uno nuevo o usa el mismo)
 SESSION_SECRET=tu-session-secret-minimo-32-caracteres-aqui

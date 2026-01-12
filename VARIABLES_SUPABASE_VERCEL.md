@@ -109,3 +109,5 @@ Razones:
 | ¿Si las borro causa problemas? | **No, tu código no las usa** |
 | ¿Qué recomiendas? | **Dejarlas (son inofensivas y pueden ser útiles)** |
 
+
+

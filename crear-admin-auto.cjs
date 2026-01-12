@@ -6,7 +6,7 @@
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const DATABASE_URL = 'postgresql://postgres.pfqzfretadqjzjbimvkv:sethum-2zAbpe-bismek@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
+const DATABASE_URL = 'postgresql://postgres.pfqzfretadqjzjbimvkv:R0CnJK4mKx9Mfj68@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
 
 async function crearAdmin() {
   try {
